@@ -1,6 +1,6 @@
 const { 
     Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, 
-    StringSelectMenuBuilder, Events, MessageFlags 
+    StringSelectMenuBuilder, Events, MessageFlags, REST, Routes, SlashCommandBuilder
 } = require("discord.js");
 const http = require("http");
 
@@ -19,10 +19,35 @@ const CONFIG = {
     MUTE_ROLE: "1524461582917308558", 
     ADMIN_ROLE: "1523692857657917440", 
     ADMIN_ROLE_2: "1524454208282300526", 
-    MOD_ROLE: "1523722197510783116"     
+    MOD_ROLE: "1523722197510783116",
+    SLASH_ALLOWED_ROLE: "1524454076031696977" // الرتبة المحددة الحصرية لأوامر السلاش
 };
 
 const warningsDatabase = {}; 
+
+// قاعدة البيانات الديناميكية للأسباب (تبدأ بالأسباب الافتراضية المحددة في صورك)
+const PUNISHMENT_REASONS = {
+    mute: [
+        { label: "القذف ، 120د", description: "العقوبة: ميوت للمدة المحددة", value: "القذف_120" },
+        { label: "السب ، 60د", description: "العقوبة: ميوت للمدة المحددة", value: "السب_60" },
+        { label: "طاري الاهل ، 60د", description: "العقوبة: ميوت للمدة المحددة", value: "طاري الاهل_60" },
+        { label: "ايحاءات جنسية ، 30د", description: "العقوبة: ميوت للمدة المحددة", value: "ايحاءات جنسية_30" },
+        { label: "مشاكل ، 15د", description: "العقوبة: ميوت للمدة المحددة", value: "مشاكل_15" }
+    ],
+    ban: [
+        { label: "نشر روابط تخريبية أو تهكير", description: "المدة: نهائي", value: "scam_نهائي" },
+        { label: "سب وقذف الذات الإلهية", description: "المدة: نهائي", value: "insult_نهائي" },
+        { label: "تخريب السيرفر بشكل متعمد", description: "المدة: نهائي", value: "raid_نهائي" }
+    ],
+    jail: [
+        { label: "إثارة المشاكل والنزاعات", description: "المدة: حتى أمر الإدارة", value: "problems_حتى أمر الإدارة" },
+        { label: "صناعة دراما بالعام", description: "المدة: حتى أمر الإدارة", value: "drama_حتى أمر الإدارة" }
+    ],
+    warn: [
+        { label: "مخالفة القوانين للمرة الأولى", description: "إضافة تحذير للسجل", value: "first_time_تحذير" },
+        { label: "إرسال صور غير لائقة", description: "إضافة تحذير للسجل", value: "media_تحذير" }
+    ]
+};
 
 const client = new Client({ 
     intents: [
@@ -34,10 +59,103 @@ const client = new Client({
     ] 
 });
 
-client.once(Events.ClientReady, () => { 
-    console.log(`=== System Online ===`);
+// تسجيل الأوامر المائلة بـ / تلقائياً عند تشغيل البوت
+client.once(Events.ClientReady, async () => { 
+    console.log(`=== System Online with Restricted Dynamic Reasons ===`);
+
+    const commands = [
+        new SlashCommandBuilder()
+            .setName("اضف_سبب")
+            .setDescription("إضافة سبب جديد لقائمة العقوبات التفاعلية (خاص برتبة محددة)")
+            .addStringOption(option => 
+                option.setName("نوع_العقوبة")
+                    .setDescription("اختر نوع العقوبة")
+                    .setRequired(true)
+                    .addChoices(
+                        { name: "ميوت", value: "mute" },
+                        { name: "باند", value: "ban" },
+                        { name: "سجن", value: "jail" },
+                        { name: "تحذير", value: "warn" }
+                    )
+            )
+            .addStringOption(option => option.setName("السبب").setDescription("اكتب السبب الجديد").setRequired(true))
+            .addStringOption(option => option.setName("المدة").setDescription("اكتب مدة العقوبة (مثال: 60د، نهائي) - يتم تجاهله في التحذير").setRequired(false)),
+
+        new SlashCommandBuilder()
+            .setName("حذف_سبب")
+            .setDescription("حذف سبب من قائمة العقوبات التفاعلية (خاص برتبة محددة)")
+            .addStringOption(option => 
+                option.setName("نوع_العقوبة")
+                    .setDescription("اختر نوع العقوبة المراد حذف سبب منها")
+                    .setRequired(true)
+                    .addChoices(
+                        { name: "ميوت", value: "mute" },
+                        { name: "باند", value: "ban" },
+                        { name: "سجن", value: "jail" },
+                        { name: "تحذير", value: "warn" }
+                    )
+            )
+            .addStringOption(option => option.setName("كلمة_من_السبب").setDescription("اكتب كلمة موجودة في السبب ليتم التعرف عليه وحذفه").setRequired(true))
+    ];
+
+    try {
+        const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+        console.log('Started refreshing application (/) commands.');
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands },
+        );
+        console.log('Successfully reloaded application (/) commands.');
+    } catch (error) {
+        console.error(error);
+    }
 });
 
+// معالجة الأوامر المائلة (Slash Commands) مع فحص الرتبة الصارم
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+
+    // فحص صارم وحصري للرتبة المحددة لأوامر السلاش فقط
+    const hasSlashRole = interaction.member.roles.cache.has(CONFIG.SLASH_ALLOWED_ROLE);
+    if (!hasSlashRole) {
+        return interaction.reply({ content: "❌ هذا الأمر مخصص فقط لأصحاب الصلاحيات العليا ولا يمكنك استخدامه.", flags: MessageFlags.Ephemeral });
+    }
+
+    if (interaction.commandName === "اضف_سبب") {
+        const type = interaction.options.getString("نوع_العقوبة");
+        const reasonName = interaction.options.getString("السبب").trim();
+        const duration = type === "warn" ? "تحذير" : (interaction.options.getString("المدة") || "نهائي");
+
+        let displayLabel = type === "warn" ? reasonName : `${reasonName} ، ${duration}`;
+        let uniqueValue = `${reasonName.substring(0,10)}_${duration}_${Date.now().toString().slice(-4)}`;
+
+        PUNISHMENT_REASONS[type].push({
+            label: displayLabel,
+            description: `عقوبة مخصصة مضافة بواسطة الإدارة العليا`,
+            value: uniqueValue
+        });
+
+        let typeTextAr = type === "mute" ? "ميوت" : type === "ban" ? "باند" : type === "jail" ? "سجن" : "تحذير";
+        return interaction.reply({ content: `✅ تم إضافة السبب الجديد بنجاح إلى قائمة الـ **${typeTextAr}**:\n📝 \`${displayLabel}\`` });
+    }
+
+    if (interaction.commandName === "حذف_سبب") {
+        const type = interaction.options.getString("نوع_العقوبة");
+        const searchWord = interaction.options.getString("كلمة_من_السبب").toLowerCase().trim();
+        const initialLength = PUNISHMENT_REASONS[type].length;
+
+        PUNISHMENT_REASONS[type] = PUNISHMENT_REASONS[type].filter(item => !item.label.toLowerCase().includes(searchWord));
+
+        let typeTextAr = type === "mute" ? "ميوت" : type === "ban" ? "باند" : type === "jail" ? "سجن" : "تحذير";
+        if (PUNISHMENT_REASONS[type].length < initialLength) {
+            return interaction.reply({ content: `✅ تم حذف الأسباب التي تحتوي على الكلمة \`${searchWord}\` من قائمة الـ **${typeTextAr}**.` });
+        } else {
+            return interaction.reply({ content: `❌ لم يتم العثور على أي سبب يحتوي على الكلمة \`${searchWord}\` في القائمة.`, flags: MessageFlags.Ephemeral });
+        }
+    }
+});
+
+// معالجة الأوامر العادية وفحص العقوبات بالشات
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
@@ -45,7 +163,6 @@ client.on(Events.MessageCreate, async (message) => {
     const args = msgContent.split(/ +/);
     if (args.length === 0) return;
 
-    // فحص صلاحيات المسؤولين
     const hasAdmin = message.member.roles.cache.has(CONFIG.ADMIN_ROLE) || message.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
     const hasMod = message.member.roles.cache.has(CONFIG.MOD_ROLE);
     if (!hasAdmin && !hasMod) return;
@@ -55,14 +172,14 @@ client.on(Events.MessageCreate, async (message) => {
 
     let activeCommand = null;
 
-    // فحص أوامر الإزالة والفحص
+    // فحص أوامر الإزالة والفحص بالشات العادي
     if (["unmute", "ازاله_ميوت", "إزالة_ميوت"].includes(firstWord) || msgContent.startsWith("ازاله ميوت") || msgContent.startsWith("إزالة ميوت")) activeCommand = "unmute";
     else if (["unjail", "خروج_من_سجن", "خروج_من_السجن"].includes(firstWord) || msgContent.startsWith("خروج من سجن") || msgContent.startsWith("خروج من السجن")) activeCommand = "unjail";
     else if (["unban", "ازاله_باند", "إزالة_باند"].includes(firstWord) || msgContent.startsWith("ازاله باند") || msgContent.startsWith("إزالة باند")) activeCommand = "unban";
     else if (["unwarn", "ازاله_تحذير", "إزالة_تحذير"].includes(firstWord) || msgContent.startsWith("ازاله تحذير") || msgContent.startsWith("إزالة تحذير")) activeCommand = "unwarn";
     else if (["تحذيرات", "warnings"].includes(firstWord)) activeCommand = "warnings";
     
-    // فحص صارم ومطوّر للأوامر (يدعم البداية والنهاية لحل مشكلة الصورة الأولى)
+    // الفحص الصارم للأوامر من أول أو آخر كلمة بالشات لمنع التداخل
     else if (firstWord === "ميوت" || firstWord === "mute" || lastWord === "ميوت" || lastWord === "mute") activeCommand = "mute";
     else if (firstWord === "باند" || firstWord === "ban" || lastWord === "باند" || lastWord === "ban") activeCommand = "ban";
     else if (firstWord === "سجن" || firstWord === "jail" || lastWord === "سجن" || lastWord === "jail") activeCommand = "jail";
@@ -70,18 +187,16 @@ client.on(Events.MessageCreate, async (message) => {
 
     if (!activeCommand) return;
 
-    // استخراج الآيدي بشكل صحيح من أي مكان بالرسالة
     const idRegex = /\d{17,19}/;
     const matchedId = msgContent.match(idRegex);
     let targetId = matchedId ? matchedId[0] : null;
 
-    // أوامر الإلغاء
     if (activeCommand === "unmute") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
         const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
         if (!targetMember) return message.reply("❌ لم يتم العثور على العضو في السيرفر.");
         await targetMember.roles.remove(CONFIG.MUTE_ROLE);
-        return message.reply(`✅ تم إزالة الميوت عن <@${targetId}>`);
+        return message.reply(`✅ تم إزالة رتبة الميوت عن <@${targetId}>`);
     }
 
     if (activeCommand === "unjail") {
@@ -135,48 +250,20 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     let selectMenu = new StringSelectMenuBuilder().setPlaceholder("اضغط لأختيار السبب");
-    let contentMessage = `<@${targetMember.id}> , رجاءً قم بأختيار سبب الميوت`;
+    let contentMessage = `<@${targetMember.id}> , رجاءً قم بأختيار السبب`;
 
-    if (activeCommand === "mute") {
-        selectMenu.setCustomId(`mute_menu_${targetMember.id}`)
-            .addOptions([
-                { label: "القذف ، 120د", description: "العقوبة: ميوت لم المدة المحددة", value: "القذف_120" },
-                { label: "السب ، 60د", description: "العقوبة: ميوت للمدة المحددة", value: "السب_60" },
-                { label: "طاري الاهل ، 60د", description: "العقوبة: ميوت للمدة المحددة", value: "طاري الاهل_60" },
-                { label: "ايحاءات جنسية ، 30د", description: "العقوبة: ميوت للمدة المحددة", value: "ايحاءات جنسية_30" },
-                { label: "مشاكل ، 15د", description: "العقوبة: ميوت للمدة المحددة", value: "مشاكل_15" }
-            ]);
+    if (!PUNISHMENT_REASONS[activeCommand] || PUNISHMENT_REASONS[activeCommand].length === 0) {
+        return message.reply(`❌ لا توجد أي أسباب مضافة لقائمة الـ **${activeCommand}** حالياً. استخدم أمر \`/اضف_سبب\` أولاً.`);
     }
-    else if (activeCommand === "ban") {
-        contentMessage = `🔨 اختيار سبب الباند لـ: ${targetMember}`;
-        selectMenu.setCustomId(`ban_menu_${targetMember.id}`)
-            .addOptions([
-                { label: "نشر روابط تخريبية أو تهكير", description: "المدة: نهائي", value: "scam_نهائي" },
-                { label: "سب وقذف الذات الإلهية", description: "المدة: نهائي", value: "insult_نهائي" },
-                { label: "تخريب السيرفر بشكل متعمد", description: "المدة: نهائي", value: "raid_نهائي" }
-            ]);
-    }
-    else if (activeCommand === "jail") {
-        contentMessage = `⛓️ اختيار سبب السجن لـ: ${targetMember}`;
-        selectMenu.setCustomId(`jail_menu_${targetMember.id}`)
-            .addOptions([
-                { label: "إثارة المشاكل والنزاعات", description: "المدة: حتى أمر الإدارة", value: "problems_حتى أمر الإدارة" },
-                { label: "صناعة دراما بالعام", description: "المدة: حتى أمر الإدارة", value: "drama_حتى أمر الإدارة" }
-            ]);
-    }
-    else if (activeCommand === "warn") {
-        contentMessage = `⚠️ اختيار سبب التحذير لـ: ${targetMember}`;
-        selectMenu.setCustomId(`warn_menu_${targetMember.id}`)
-            .addOptions([
-                { label: "مخالفة القوانين للمرة الأولى", description: "إضافة تحذير للسجل", value: "first_time_تحذير" },
-                { label: "إرسال صور غير لائقة", description: "إضافة تحذير للسجل", value: "media_تحذير" }
-            ]);
-    }
+
+    selectMenu.setCustomId(`${activeCommand}_menu_${targetMember.id}`)
+        .addOptions(PUNISHMENT_REASONS[activeCommand]);
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
     await message.reply({ content: contentMessage, components: [row] });
 });
 
+// معالجة تفاعلات القوائم (Menu Interactions)
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isStringSelectMenu()) return;
 
@@ -206,11 +293,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     let cleanReason = selectedLabel.split("،")[0].trim();
     let durationText = selectedLabel.split("،")[1] ? selectedLabel.split("،")[1].trim() : "نهائي";
 
-    if (selectedValue.includes("_")) {
-        const partsVal = selectedValue.split("_");
-        cleanReason = partsVal[0];
-        durationText = partsVal[1] || "نهائي";
-    }
+    if (menuType === "warn") durationText = "بدون مدة";
 
     let typeText = menuType;
 
@@ -218,7 +301,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (menuType === "mute") {
             await targetMember.roles.add(CONFIG.MUTE_ROLE);
             typeText = "voice"; 
-            await interaction.reply({ content: `✅ تم إعطاء الميوت لـ ${targetMember} بناءً على: ${cleanReason}` });
+            await interaction.reply({ content: `✅ تم إعطاء رتبة الميوت لـ ${targetMember} بناءً على: ${cleanReason}` });
         }
         else if (menuType === "ban") {
             await interaction.guild.members.ban(targetId, { reason: cleanReason });
@@ -251,10 +334,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 .setFooter({ text: "يرجى الالتزام بالقوانين لتجنب العقوبات الأشد كالميوت أو السجن والباند." })
                 .setTimestamp();
 
-            // إرسال في الخاص بدون كتابة حالة الإرسال في روم العام
             await targetMember.send({ embeds: [dmEmbed] }).catch(() => {});
-
-            // الرسالة في الشات العام مقتصرة فقط على تأكيد التحذير
             await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${cleanReason}` });
         }
 
@@ -267,7 +347,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     } catch (err) {
         console.error(err);
-        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات رتبة البوت وترتيبها وترتيب رتبة البوت بالسيرفر.", flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات رتبة البوت وترتيبها بالسيرفر.", flags: MessageFlags.Ephemeral });
     }
 });
 
