@@ -1,11 +1,13 @@
 const { 
     Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, 
-    StringSelectMenuBuilder, Events, PermissionFlagsBits 
+    StringSelectMenuBuilder, Events 
 } = require("discord.js");
 
 const CONFIG = {
     LOG_CHANNEL: "1524441464828985384", 
-    JAIL_ROLE: "1524441575118082068"   
+    JAIL_ROLE: "1524441575118082068",
+    ADMIN_ROLE: "1523692857657917440", 
+    MOD_ROLE: "1523722197510783116"     
 };
 
 const client = new Client({ 
@@ -18,7 +20,7 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, () => { 
-    console.log(`=== 👮‍♂️ نظام العقوبات الذكي جاهز ومعدل ===`);
+    console.log(`=== System Online ===`);
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -26,22 +28,20 @@ client.on(Events.MessageCreate, async (message) => {
 
     const msgContent = message.content.trim();
 
-    // الكلمات المفتاحية للعقوبات
     const isMute = msgContent.includes("mute") || msgContent.includes("ميوت");
     const isBan = msgContent.includes("ban") || msgContent.includes("باند");
     const isJail = msgContent.includes("jail") || msgContent.includes("سجن");
     const isWarn = msgContent.includes("warn") || msgContent.includes("تحذير");
 
-    // إذا لم تكن الرسالة تحتوي على أي عقوبة نوقف الكود
     if (!isMute && !isBan && !isJail && !isWarn) return;
 
-    // التحقق من صلاحيات الإداري
-    if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-        return message.reply("❌ ليس لديك صلاحية استخدام هذا الأمر.");
-    }
+    const hasAdmin = message.member.roles.cache.has(CONFIG.ADMIN_ROLE);
+    const hasMod = message.member.roles.cache.has(CONFIG.MOD_ROLE);
 
-    // استخراج الآيدي أو المنشن من الرسالة كاملة (حل مشكلة الترتيب العربي)
-    const idRegex = /\d{17,19}/; // يبحث عن أي رقم يتكون من 17 إلى 19 خانة (الآيدي)
+    if (!hasAdmin && !hasMod) return;
+    if ((isBan || isJail) && !hasAdmin) return;
+
+    const idRegex = /\d{17,19}/;
     const matchedId = msgContent.match(idRegex);
     
     let targetMember = null;
@@ -59,7 +59,6 @@ client.on(Events.MessageCreate, async (message) => {
     let selectMenu = new StringSelectMenuBuilder().setPlaceholder("قم بإختيار القانون المراد تطبيقه");
     let contentMessage = "";
 
-    // 1. منيو الميوت
     if (isMute) {
         contentMessage = `🤐 اختيار مدة وسبب الميوت لـ: ${targetMember}`;
         selectMenu.setCustomId(`mute_menu_${targetMember.id}`)
@@ -69,7 +68,6 @@ client.on(Events.MessageCreate, async (message) => {
                 { label: "مخالفة القوانين بشكل متكرر", description: "المدة: 1 يوم كامل", value: "1440" }
             ]);
     }
-    // 2. منيو الباند
     else if (isBan) {
         contentMessage = `🔨 اختيار سبب الباند لـ: ${targetMember}`;
         selectMenu.setCustomId(`ban_menu_${targetMember.id}`)
@@ -79,7 +77,6 @@ client.on(Events.MessageCreate, async (message) => {
                 { label: "تخريب السيرفر بشكل متعمد", description: "المدة: نهائي (طرد وباند كامل)", value: "raid" }
             ]);
     }
-    // 3. منيو السجن
     else if (isJail) {
         contentMessage = `⛓️ اختيار سبب السجن لـ: ${targetMember}`;
         selectMenu.setCustomId(`jail_menu_${targetMember.id}`)
@@ -88,7 +85,6 @@ client.on(Events.MessageCreate, async (message) => {
                 { label: "صناعة دراما ونزاعات بالعام", description: "المدة: حتى أمر الإدارة (رتبة السجن)", value: "drama" }
             ]);
     }
-    // 4. منيو التحذير
     else if (isWarn) {
         contentMessage = `⚠️ اختيار سبب التحذير لـ: ${targetMember}`;
         selectMenu.setCustomId(`warn_menu_${targetMember.id}`)
@@ -102,7 +98,6 @@ client.on(Events.MessageCreate, async (message) => {
     await message.reply({ content: contentMessage, components: [row] });
 });
 
-// معالجة التفاعل مع القوائم (تبقى كما هي)
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isStringSelectMenu()) return;
 
@@ -111,8 +106,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const menuType = parts[0]; 
     const targetId = parts[2];
     
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-        return interaction.reply({ content: "❌ لا يمكنك التحكم في هذا المنيو.", ephemeral: true });
+    const hasAdmin = interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE);
+    const hasMod = interaction.member.roles.cache.has(CONFIG.MOD_ROLE);
+
+    if (!hasAdmin && !hasMod) {
+        return interaction.reply({ content: "❌ لا تملك الرتبة المطلوبة للتحكم في هذا المنيو.", ephemeral: true });
+    }
+
+    if ((menuType === "ban" || menuType === "jail") && !hasAdmin) {
+        return interaction.reply({ content: "❌ رتبتك لا تسمح بتنفيذ عمليات الباند والسجن.", ephemeral: true });
     }
 
     const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
@@ -159,8 +161,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 .setColor(color)
                 .setTitle(`عقوبة مستقلة: ${actionText}`)
                 .addFields(
-                    { name: "العضو:", value: `${targetMember.user.tag} (${targetMember.id})`, inline: true },
-                    { name: "الإداري:", value: `${interaction.user.tag}`, inline: true },
+                    { name: "العضو المستهدف:", value: `${targetMember.user.tag} (${targetMember.id})`, inline: true },
+                    { name: "الإداري المسؤول:", value: `${interaction.user.tag}`, inline: true },
                     { name: "السبب المختار:", value: selectedLabel }
                 ).setTimestamp();
             logChannel.send({ embeds: [logEmbed] });
