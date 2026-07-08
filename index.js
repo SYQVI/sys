@@ -81,7 +81,7 @@ client.on(Events.MessageCreate, async (message) => {
         const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
         if (!targetMember) return message.reply("❌ لم يتم العثور على العضو في السيرفر.");
         await targetMember.roles.remove(CONFIG.MUTE_ROLE);
-        return message.reply(`✅ تم إزالة رتبة الميوت عن <@${targetId}>`);
+        return message.reply(`✅ تم إزالة الميوت عن <@${targetId}>`);
     }
 
     if (activeCommand === "unjail") {
@@ -218,7 +218,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (menuType === "mute") {
             await targetMember.roles.add(CONFIG.MUTE_ROLE);
             typeText = "voice"; 
-            await interaction.reply({ content: `✅ تم إعطاء رتبة الميوت لـ ${targetMember} بناءً على: ${cleanReason}` });
+            await interaction.reply({ content: `✅ تم إعطاء الميوت لـ ${targetMember} بناءً على: ${cleanReason}` });
         }
         else if (menuType === "ban") {
             await interaction.guild.members.ban(targetId, { reason: cleanReason });
