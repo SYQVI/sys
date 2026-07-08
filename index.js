@@ -4,14 +4,11 @@ const {
 } = require("discord.js");
 const http = require("http");
 
-// حل مشكلة منفذ (Port) منصة Render لمنع الـ Timed Out
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is alive!\n');
-}).listen(port, () => {
-    console.log(`Server is listening on port ${port}`);
-});
+}).listen(port);
 
 const CONFIG = {
     LOG_CHANNEL: "1524441464828985384", 
@@ -20,12 +17,11 @@ const CONFIG = {
     ADMIN_ROLE: "1523692857657917440", 
     ADMIN_ROLE_2: "1524454208282300526", 
     MOD_ROLE: "1523722197510783116",
-    SLASH_ALLOWED_ROLE: "1524454076031696977" // الرتبة المحددة الحصرية لأوامر السلاش
+    SLASH_ALLOWED_ROLE: "1524454076031696977"
 };
 
 const warningsDatabase = {}; 
 
-// قاعدة البيانات الديناميكية للأسباب (تبدأ بالأسباب الافتراضية المحددة في صورك)
 const PUNISHMENT_REASONS = {
     mute: [
         { label: "القذف ، 120د", description: "العقوبة: ميوت للمدة المحددة", value: "القذف_120" },
@@ -59,10 +55,7 @@ const client = new Client({
     ] 
 });
 
-// تسجيل الأوامر المائلة بـ / تلقائياً عند تشغيل البوت
 client.once(Events.ClientReady, async () => { 
-    console.log(`=== System Online with Restricted Dynamic Reasons ===`);
-
     const commands = [
         new SlashCommandBuilder()
             .setName("اضف_سبب")
@@ -79,7 +72,7 @@ client.once(Events.ClientReady, async () => {
                     )
             )
             .addStringOption(option => option.setName("السبب").setDescription("اكتب السبب الجديد").setRequired(true))
-            .addStringOption(option => option.setName("المدة").setDescription("اكتب مدة العقوبة (مثال: 60د، نهائي) - يتم تجاهله في التحذير").setRequired(false)),
+            .addStringOption(option => option.setName("المدة").setDescription("اكتب مدة العقوبة").setRequired(false)),
 
         new SlashCommandBuilder()
             .setName("حذف_سبب")
@@ -95,27 +88,23 @@ client.once(Events.ClientReady, async () => {
                         { name: "تحذير", value: "warn" }
                     )
             )
-            .addStringOption(option => option.setName("كلمة_من_السبب").setDescription("اكتب كلمة موجودة في السبب ليتم التعرف عليه وحذفه").setRequired(true))
+            .addStringOption(option => option.setName("كلمة_من_السبب").setDescription("اكتب كلمة موجودة في السبب").setRequired(true))
     ];
 
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-        console.log('Started refreshing application (/) commands.');
         await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands },
         );
-        console.log('Successfully reloaded application (/) commands.');
     } catch (error) {
         console.error(error);
     }
 });
 
-// معالجة الأوامر المائلة (Slash Commands) مع فحص الرتبة الصارم
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    // فحص صارم وحصري للرتبة المحددة لأوامر السلاش فقط
     const hasSlashRole = interaction.member.roles.cache.has(CONFIG.SLASH_ALLOWED_ROLE);
     if (!hasSlashRole) {
         return interaction.reply({ content: "❌ هذا الأمر مخصص فقط لأصحاب الصلاحيات العليا ولا يمكنك استخدامه.", flags: MessageFlags.Ephemeral });
@@ -155,7 +144,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 });
 
-// معالجة الأوامر العادية وفحص العقوبات بالشات
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
@@ -172,14 +160,11 @@ client.on(Events.MessageCreate, async (message) => {
 
     let activeCommand = null;
 
-    // فحص أوامر الإزالة والفحص بالشات العادي
     if (["unmute", "ازاله_ميوت", "إزالة_ميوت"].includes(firstWord) || msgContent.startsWith("ازاله ميوت") || msgContent.startsWith("إزالة ميوت")) activeCommand = "unmute";
     else if (["unjail", "خروج_من_سجن", "خروج_من_السجن"].includes(firstWord) || msgContent.startsWith("خروج من سجن") || msgContent.startsWith("خروج من السجن")) activeCommand = "unjail";
     else if (["unban", "ازاله_باند", "إزالة_باند"].includes(firstWord) || msgContent.startsWith("ازاله باند") || msgContent.startsWith("إزالة باند")) activeCommand = "unban";
     else if (["unwarn", "ازاله_تحذير", "إزالة_تحذير"].includes(firstWord) || msgContent.startsWith("ازاله تحذير") || msgContent.startsWith("إزالة تحذير")) activeCommand = "unwarn";
     else if (["تحذيرات", "warnings"].includes(firstWord)) activeCommand = "warnings";
-    
-    // الفحص الصارم للأوامر من أول أو آخر كلمة بالشات لمنع التداخل
     else if (firstWord === "ميوت" || firstWord === "mute" || lastWord === "ميوت" || lastWord === "mute") activeCommand = "mute";
     else if (firstWord === "باند" || firstWord === "ban" || lastWord === "باند" || lastWord === "ban") activeCommand = "ban";
     else if (firstWord === "سجن" || firstWord === "jail" || lastWord === "سجن" || lastWord === "jail") activeCommand = "jail";
@@ -196,7 +181,7 @@ client.on(Events.MessageCreate, async (message) => {
         const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
         if (!targetMember) return message.reply("❌ لم يتم العثور على العضو في السيرفر.");
         await targetMember.roles.remove(CONFIG.MUTE_ROLE);
-        return message.reply(`✅ تم إزالة رتبة الميوت عن <@${targetId}>`);
+        return message.reply(`✅ تم إزاله الميوت عن <@${targetId}>`);
     }
 
     if (activeCommand === "unjail") {
@@ -249,6 +234,15 @@ client.on(Events.MessageCreate, async (message) => {
         return message.reply(`⚠️ يرجى تحديد العضو بشكل صحيح. مثال: \`${currentCommandName} 1197508804544315513\` أو \`1197508804544315513 ${currentCommandName}\``);
     }
 
+    const isTargetAdminOrMod = targetMember.roles.cache.has(CONFIG.ADMIN_ROLE) || 
+                               targetMember.roles.cache.has(CONFIG.ADMIN_ROLE_2) || 
+                               targetMember.roles.cache.has(CONFIG.MOD_ROLE) ||
+                               targetMember.roles.cache.has(CONFIG.SLASH_ALLOWED_ROLE);
+
+    if (isTargetAdminOrMod) {
+        return message.reply("❌ **خطأ:** لا يمكنك إعطاء عقوبة (ميوت/باند/سجن/تحذير) لأحد أفراد طاقم الإدارة أو المشرفين!");
+    }
+
     let selectMenu = new StringSelectMenuBuilder().setPlaceholder("اضغط لأختيار السبب");
     let contentMessage = `<@${targetMember.id}> , رجاءً قم بأختيار السبب`;
 
@@ -263,7 +257,6 @@ client.on(Events.MessageCreate, async (message) => {
     await message.reply({ content: contentMessage, components: [row] });
 });
 
-// معالجة تفاعلات القوائم (Menu Interactions)
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isStringSelectMenu()) return;
 
@@ -286,6 +279,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
     if (!targetMember && menuType !== "ban") return interaction.reply({ content: "❌ لم يتم العثور على العضو.", flags: MessageFlags.Ephemeral });
 
+    if (targetMember) {
+        const isTargetAdminOrMod = targetMember.roles.cache.has(CONFIG.ADMIN_ROLE) || 
+                                   targetMember.roles.cache.has(CONFIG.ADMIN_ROLE_2) || 
+                                   targetMember.roles.cache.has(CONFIG.MOD_ROLE) ||
+                                   targetMember.roles.cache.has(CONFIG.SLASH_ALLOWED_ROLE);
+
+        if (isTargetAdminOrMod) {
+            return interaction.reply({ content: "❌ لا يمكن معاقبة هذا العضو لأنه من طاقم الإدارة.", flags: MessageFlags.Ephemeral });
+        }
+    }
+
     const logChannel = interaction.guild.channels.cache.get(CONFIG.LOG_CHANNEL);
     const selectedValue = interaction.values[0];
     const selectedLabel = interaction.component.options.find(o => o.value === selectedValue).label;
@@ -301,7 +305,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (menuType === "mute") {
             await targetMember.roles.add(CONFIG.MUTE_ROLE);
             typeText = "voice"; 
-            await interaction.reply({ content: `✅ تم إعطاء رتبة الميوت لـ ${targetMember} بناءً على: ${cleanReason}` });
+            await interaction.reply({ content: `✅ تم إعطاء الميوت لـ ${targetMember} بناءً على: ${cleanReason}` });
         }
         else if (menuType === "ban") {
             await interaction.guild.members.ban(targetId, { reason: cleanReason });
