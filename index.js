@@ -6,7 +6,7 @@ const {
 const CONFIG = {
     LOG_CHANNEL: "1524441464828985384", 
     JAIL_ROLE: "1524441575118082068",
-    MUTE_ROLE: "1524461582917308558", 
+    MUTE_ROLE: "1524461582917308558", // تم تثبيت آيدي رتبة الميوت الجديد هنا
     ADMIN_ROLE: "1523692857657917440", 
     ADMIN_ROLE_2: "1524454208282300526", 
     MOD_ROLE: "1523722197510783116"     
@@ -148,8 +148,8 @@ client.on(Events.MessageCreate, async (message) => {
         contentMessage = `⚠️ اختيار سبب التحذير لـ: ${targetMember}`;
         selectMenu.setCustomId(`warn_menu_${targetMember.id}`)
             .addOptions([
-                { label: "مخالفة القوانين للمرة الأولى", description: "النوع: إضافة تحذير للسجل", value: "first_time" },
-                { label: "إرسال صور أو مقاطع غير لائقة", description: "النوع: إضافة تحذير للسجل", value: "media" }
+                { label: "مخالفة القوانين للمرة الأولى", description: "النوع: إضافة تحذير للسجل والإرسال خاص", value: "first_time" },
+                { label: "إرسال صور أو مقاطع غير لائقة", description: "النوع: إضافة تحذير للسجل والإرسال خاص", value: "media" }
             ]);
     }
 
@@ -185,6 +185,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     let actionText = "";
     let color = "#000000";
+    let dmSentStatus = ""; 
 
     try {
         if (menuType === "mute") {
@@ -215,7 +216,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             actionText = `⚠️ تحذير (التحذير رقم ${warningsDatabase[targetId].length})`;
             color = "#FFA500";
-            await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${selectedLabel} (إجمالي التحذيرات: ${warningsDatabase[targetId].length})` });
+
+            const dmEmbed = new EmbedBuilder()
+                .setColor("#FFA500")
+                .setTitle(`⚠️ لقد تلقيت تحذيراً جديداً!`)
+                .setDescription(`مرحباً بك في سيرفر **${interaction.guild.name}**، نود إعلامك بأنه تم تسجيل تحذير رسمي بحقك بسبب مخالفتك للقوانين.`)
+                .addFields(
+                    { name: "السبب:", value: selectedLabel },
+                    { name: "إجمالي تحذيراتك الحالية:", value: `${warningsDatabase[targetId].length}` }
+                )
+                .setFooter({ text: "يرجى الالتزام بالقوانين لتجنب العقوبات الأشد كالميوت أو السجن والباند." })
+                .setTimestamp();
+
+            const dmSuccess = await targetMember.send({ embeds: [dmEmbed] }).then(() => true).catch(() => false);
+            dmSentStatus = dmSuccess ? "📥 (تم إرسال التحذير بنجاح في الخاص)" : "🔒 (تعذر الإرسال - الخاص مقفل)";
+
+            await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${selectedLabel} ${dmSentStatus}` });
         }
 
         await interaction.message.delete().catch(() => {});
@@ -229,6 +245,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     { name: "الإداري المسؤول:", value: `${interaction.user.tag}`, inline: true },
                     { name: "السبب المختار:", value: selectedLabel }
                 ).setTimestamp();
+                
+            if(menuType === "warn") {
+                logEmbed.addFields({ name: "حالة رسالة الخاص:", value: dmSentStatus });
+            }
             logChannel.send({ embeds: [logEmbed] });
         }
 
