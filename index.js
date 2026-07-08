@@ -6,7 +6,7 @@ const {
 const CONFIG = {
     LOG_CHANNEL: "1524441464828985384", 
     JAIL_ROLE: "1524441575118082068",
-    MUTE_ROLE: "1524461582917308558", // تم تثبيت آيدي رتبة الميوت الجديد هنا
+    MUTE_ROLE: "1524461582917308558", 
     ADMIN_ROLE: "1523692857657917440", 
     ADMIN_ROLE_2: "1524454208282300526", 
     MOD_ROLE: "1523722197510783116"     
@@ -183,27 +183,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const selectedValue = interaction.values[0];
     const selectedLabel = interaction.component.options.find(o => o.value === selectedValue).label;
 
-    let actionText = "";
-    let color = "#000000";
-    let dmSentStatus = ""; 
+    let typeText = "";
 
     try {
         if (menuType === "mute") {
             await targetMember.roles.add(CONFIG.MUTE_ROLE);
-            actionText = `🤐 رتبة ميوت مخصصة`;
-            color = "#FFFF00";
+            typeText = "mute";
             await interaction.reply({ content: `✅ تم إعطاء رتبة الميوت لـ ${targetMember} بناءً على: ${selectedLabel}` });
         }
         else if (menuType === "ban") {
             await interaction.guild.members.ban(targetId, { reason: selectedLabel });
-            actionText = "🔨 باند نهائي";
-            color = "#FF0000";
+            typeText = "ban";
             await interaction.reply({ content: `✅ تم تبنيد الآيدي ${targetId} نهائياً بسبب: ${selectedLabel}` });
         }
         else if (menuType === "jail") {
             await targetMember.roles.add(CONFIG.JAIL_ROLE);
-            actionText = "⛓️ سجن (Jail)";
-            color = "#8B0000";
+            typeText = "jail";
             await interaction.reply({ content: `✅ تم سجن ${targetMember} بسبب: ${selectedLabel}` });
         }
         else if (menuType === "warn") {
@@ -214,8 +209,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 timestamp: Date.now()
             });
 
-            actionText = `⚠️ تحذير (التحذير رقم ${warningsDatabase[targetId].length})`;
-            color = "#FFA500";
+            typeText = `warn (${warningsDatabase[targetId].length})`;
 
             const dmEmbed = new EmbedBuilder()
                 .setColor("#FFA500")
@@ -229,7 +223,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 .setTimestamp();
 
             const dmSuccess = await targetMember.send({ embeds: [dmEmbed] }).then(() => true).catch(() => false);
-            dmSentStatus = dmSuccess ? "📥 (تم إرسال التحذير بنجاح في الخاص)" : "🔒 (تعذر الإرسال - الخاص مقفل)";
+            const dmSentStatus = dmSuccess ? "📥 (تم إرسال التحذير بنجاح في الخاص)" : "🔒 (تعذر الإرسال - الخاص مقفل)";
 
             await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${selectedLabel} ${dmSentStatus}` });
         }
@@ -237,19 +231,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await interaction.message.delete().catch(() => {});
 
         if (logChannel) {
-            const logEmbed = new EmbedBuilder()
-                .setColor(color)
-                .setTitle(`عقوبة مستقلة: ${actionText}`)
-                .addFields(
-                    { name: "العضو المستهدف:", value: `<@${targetId}> (${targetId})`, inline: true },
-                    { name: "الإداري المسؤول:", value: `${interaction.user.tag}`, inline: true },
-                    { name: "السبب المختار:", value: selectedLabel }
-                ).setTimestamp();
-                
-            if(menuType === "warn") {
-                logEmbed.addFields({ name: "حالة رسالة الخاص:", value: dmSentStatus });
-            }
-            logChannel.send({ embeds: [logEmbed] });
+            // صياغة اللوج النصي تماماً مثل شكل الصورة المطلوبة
+            const logMessage = `**type: ${typeText}**\n**member :** <@${targetId}>\n**admin :** <@${interaction.user.id}>\n**reason :** ${selectedLabel}`;
+            logChannel.send({ content: logMessage });
         }
 
     } catch (err) {
