@@ -3,10 +3,9 @@ const {
     StringSelectMenuBuilder, Events, PermissionFlagsBits 
 } = require("discord.js");
 
-// الإعدادات الأساسية (ضع آيديات سيرفرك هنا)
 const CONFIG = {
-    LOG_CHANNEL: "1524441464828985384", 
-    JAIL_ROLE: "1524441575118082068"   
+    LOG_CHANNEL: "آيدي_روم_اللوج", 
+    JAIL_ROLE: "آيدي_رتبة_السجن"   
 };
 
 const client = new Client({ 
@@ -19,138 +18,151 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, () => { 
-    console.log(`=== 👮‍♂️ System Online ===`);
-    console.log(`Logged in as: ${client.user.tag}`);
-    console.log(`Listening for direct moderation words...`);
+    console.log(`=== 👮‍♂️ نظام العقوبات المنفصلة جاهز ===`);
 });
 
-// 1. جلب الكلمة المباشرة والآيدي (بدون بريفيكس)
+// استقبال الكلمات المباشرة
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
-    // تقسيم نص الرسالة إلى كلمات
     const args = message.content.trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // تشغيل الأمر بمجرد كتابة (mute أو ميوت)
-    if (command === "mute" || command === "ميوت" || command === "punish" || command === "عقوبة") {
-        
-        // التحقق من صلاحيات الإداري الذي كتب الأمر
-        if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-            return message.reply("❌ ليس لديك صلاحية استخدام هذا الأمر.");
-        }
+    // التحقق من أن الكلمة المكتوبة هي إحدى العقوبات
+    const availableCommands = ["mute", "ميوت", "ban", "باند", "jail", "سجن", "warn", "تحذير"];
+    if (!availableCommands.includes(command)) return;
 
-        // جلب العضو المستهدف بالمنشن أو بالآيدي مباشرة
-        const targetMember = message.mentions.members.first() || message.guild.members.cache.get(args[0]);
-        
-        if (!targetMember) {
-            return message.reply(`⚠️ اكتب آيدي الشخص أو سوي له منشن بعد الكلمة مباشرة. مثال:\n\`mute 1234567890\`\n\`ميوت @user\``);
-        }
-
-        // تصميم القائمة المنسدلة (المنيو) المتطورة
-        const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId(`punish_menu_${targetMember.id}`) // تخزين الآيدي للتعامل معه عند الضغط
-            .setPlaceholder("قم بإختيار القانون المراد تطبيقه")
-            .addOptions([
-                {
-                    label: "تحذير (Warn) - مخالفة القوانين للمرة الأولى",
-                    description: "المدة: أبدي (تسجيل في اللوج)",
-                    value: "warn"
-                },
-                {
-                    label: "ميوت (Mute) - إزعاج في الرومات الصوتية أو الشات",
-                    description: "المدة: 10 دقائق (تايم آوت تلقائي)",
-                    value: "mute_10"
-                },
-                {
-                    label: "سجن (Jail) - إثارة المشاكل وعدم احترام الأعضاء",
-                    description: "المدة: حتى أمر الإدارة (رتبة السجن)",
-                    value: "jail"
-                },
-                {
-                    label: "باند (Ban) - نشر روابط تخريبية أو سب وقذف",
-                    description: "المدة: نهائي (طرد وباند كامل)",
-                    value: "ban"
-                }
-            ]);
-
-        const row = new ActionRowBuilder().addComponents(selectMenu);
-
-        // إرسال القائمة في الشات
-        await message.reply({
-            content: `🛡️ قم باختيار العقوبة المناسبة للعضو: ${targetMember}`,
-            components: [row]
-        });
+    // التحقق من صلاحيات الإداري
+    if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        return message.reply("❌ ليس لديك صلاحية استخدام هذا الأمر.");
     }
+
+    // جلب العضو
+    const targetMember = message.mentions.members.first() || message.guild.members.cache.get(args[0]);
+    if (!targetMember) {
+        return message.reply(`⚠️ يرجى تحديد العضو. مثال: \`${command} 1234567890\``);
+    }
+
+    let selectMenu = new StringSelectMenuBuilder().setPlaceholder("قم بإختيار القانون المراد تطبيقه");
+    let contentMessage = "";
+
+    // 1. منيو الميوت المنفصل
+    if (command === "mute" || command === "ميوت") {
+        contentMessage = `🤐 اختيار مدة وسبب الميوت لـ: ${targetMember}`;
+        selectMenu.setCustomId(`mute_menu_${targetMember.id}`)
+            .addOptions([
+                { label: "إزعاج في الرومات الصوتية أو الشات", description: "المدة: 10 دقائق (تايم آوت تلقائي)", value: "10" },
+                { label: "سب وشتم خفيف أو تكرار الكلام (سبام)", description: "المدة: 1 ساعة", value: "60" },
+                { label: "مخالفة القوانين بشكل متكرر", description: "المدة: 1 يوم كامل", value: "1440" }
+            ]);
+    }
+    // 2. منيو الباند المنفصل
+    else if (command === "ban" || command === "باند") {
+        contentMessage = `🔨 اختيار سبب الباند لـ: ${targetMember}`;
+        selectMenu.setCustomId(`ban_menu_${targetMember.id}`)
+            .addOptions([
+                { label: "نشر روابط تخريبية أو تهكير", description: "المدة: نهائي (طرد وباند كامل)", value: "scam" },
+                { label: "سب وقذف الأهل أو الذات الإلهية", description: "المدة: نهائي (طرد وباند كامل)", value: "insult" },
+                { label: "تخريب السيرفر بشكل متعمد", description: "المدة: نهائي (طرد وباند كامل)", value: "raid" }
+            ]);
+    }
+    // 3. منيو السجن المنفصل
+    else if (command === "jail" || command === "سجن") {
+        contentMessage = `⛓️ اختيار سبب السجن لـ: ${targetMember}`;
+        selectMenu.setCustomId(`jail_menu_${targetMember.id}`)
+            .addOptions([
+                { label: "إثارة المشاكل وعدم احترام الأعضاء", description: "المدة: حتى أمر الإدارة (رتبة السجن)", value: "problems" },
+                { label: "صناعة دراما ونزاعات بالعام", description: "المدة: حتى أمر الإدارة (رتبة السجن)", value: "drama" }
+            ]);
+    }
+    // 4. منيو التحذير المنفصل
+    else if (command === "warn" || command === "تحذير") {
+        contentMessage = `⚠️ اختيار سبب التحذير لـ: ${targetMember}`;
+        selectMenu.setCustomId(`warn_menu_${targetMember.id}`)
+            .addOptions([
+                { label: "مخالفة القوانين للمرة الأولى", description: "المدة: أبدي (تسجيل في اللوج)", value: "first_time" },
+                { label: "إرسال صور أو مقاطع غير لائقة", description: "المدة: أبدي (تسجيل في اللوج)", value: "media" }
+            ]);
+    }
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+    await message.reply({ content: contentMessage, components: [row] });
 });
 
-// 2. معالجة الاختيار من القائمة المنسدلة وتنفيذ العقوبة
+// معالجة الضغط على أي منيو وتطبيق العقوبة
 client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isStringSelectMenu() || !interaction.customId.startsWith("punish_menu_")) return;
+    if (!interaction.isStringSelectMenu()) return;
 
-    const targetId = interaction.customId.split("_")[2];
-    const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
-    const action = interaction.values[0];
-
-    // حماية المنيو: التحقق من صلاحيات الشخص الذي ضغط
+    const customId = interaction.customId;
+    const parts = customId.split("_");
+    const menuType = parts[0]; // mute, ban, jail, warn
+    const targetId = parts[2];
+    
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
         return interaction.reply({ content: "❌ لا يمكنك التحكم في هذا المنيو.", ephemeral: true });
     }
 
-    if (!targetMember) {
-        return interaction.reply({ content: "❌ لم يتم العثور على هذا العضو في السيرفر.", ephemeral: true });
-    }
+    const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
+    if (!targetMember) return interaction.reply({ content: "❌ لم يتم العثور على العضو.", ephemeral: true });
 
     const logChannel = interaction.guild.channels.cache.get(CONFIG.LOG_CHANNEL);
+    const selectedValue = interaction.values[0];
+    const selectedLabel = interaction.component.options.find(o => o.value === selectedValue).label;
+
     let actionText = "";
     let color = "#000000";
 
     try {
-        if (action === "warn") {
-            actionText = "⚠️ تحذير (Warn)";
-            color = "#FFA500";
-            await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember}` });
-        } 
-        else if (action === "mute_10") {
-            actionText = "🤐 ميوت (Mute)";
+        // تنفيذ الميوت المنفصل
+        if (menuType === "mute") {
+            const minutes = parseInt(selectedValue);
+            await targetMember.timeout(minutes * 60 * 1000, selectedLabel);
+            actionText = `🤐 ميوت لمدة ${minutes} دقائق`;
             color = "#FFFF00";
-            await targetMember.timeout(10 * 60 * 1000, "تطبيق العقوبة بالقائمة المنسدلة");
-            await interaction.reply({ content: `✅ تم إعطاء ميوت لـ ${targetMember} لمدة 10 دقائق` });
-        } 
-        else if (action === "jail") {
-            actionText = "⛓️ سجن (Jail)";
-            color = "#8B0000";
+            await interaction.reply({ content: `✅ تم إعطاء ميوت لـ ${targetMember} بناءً على: ${selectedLabel}` });
+        }
+        // تنفيذ الباند المنفصل
+        else if (menuType === "ban") {
+            await targetMember.ban({ reason: selectedLabel });
+            actionText = "🔨 باند نهائي";
+            color = "#FF0000";
+            await interaction.reply({ content: `✅ تم تبنيد ${targetMember.user.username} نهائياً بسبب: ${selectedLabel}` });
+        }
+        // تنفيذ السجن المنفصل
+        else if (menuType === "jail") {
             const jailRole = interaction.guild.roles.cache.get(CONFIG.JAIL_ROLE);
             if (jailRole) await targetMember.roles.add(jailRole);
-            await interaction.reply({ content: `✅ تم سجن العضو ${targetMember} بنجاح` });
-        } 
-        else if (action === "ban") {
-            actionText = "🔨 باند (Ban)";
-            color = "#FF0000";
-            await targetMember.ban({ reason: "تطبيق العقوبة بالقائمة المنسدلة" });
-            await interaction.reply({ content: `✅ تم طرد وتبنيد ${targetMember.user.username} نهائياً` });
+            actionText = "⛓️ سجن (Jail)";
+            color = "#8B0000";
+            await interaction.reply({ content: `✅ تم سجن ${targetMember} بسبب: ${selectedLabel}` });
+        }
+        // تنفيذ التحذير المنفصل
+        else if (menuType === "warn") {
+            actionText = "⚠️ تحذير (Warn)";
+            color = "#FFA500";
+            await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${selectedLabel}` });
         }
 
-        // حذف رسالة المنيو بعد التنفيذ مباشرة ليكون الشات نظيفاً
+        // حذف المنيو بعد الاختيار
         await interaction.message.delete().catch(() => {});
 
-        // إرسال اللوج إلى الروم المخصص للإدارة
+        // إرسال اللوج
         if (logChannel) {
             const logEmbed = new EmbedBuilder()
                 .setColor(color)
-                .setTitle(`عقوبة إدارية جديدة: ${actionText}`)
+                .setTitle(`عقوبة مستقلة: ${actionText}`)
                 .addFields(
-                    { name: "العضو المستهدف:", value: `${targetMember.user.tag} (${targetMember.id})`, inline: true },
-                    { name: "الإداري المسؤول:", value: `${interaction.user.tag}`, inline: true }
+                    { name: "العضو:", value: `${targetMember.user.tag} (${targetMember.id})`, inline: true },
+                    { name: "الإداري:", value: `${interaction.user.tag}`, inline: true },
+                    { name: "السبب المختار:", value: selectedLabel }
                 ).setTimestamp();
             logChannel.send({ embeds: [logEmbed] });
         }
 
     } catch (err) {
         console.error(err);
-        await interaction.reply({ content: "❌ حدث خطأ، تأكد من صلاحيات رتبة البوت وتوفر رتبة السجن.", ephemeral: true });
+        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات البوت الرتبوية.", ephemeral: true });
     }
 });
 
-// استدعاء التوكن بأمان من بيئة العمل الخارجية المخصصة لـ GitHub
 client.login(process.env.TOKEN);
