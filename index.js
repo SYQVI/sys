@@ -6,17 +6,21 @@ const {
 const CONFIG = {
     LOG_CHANNEL: "1524441464828985384", 
     JAIL_ROLE: "1524441575118082068",
+    MUTE_ROLE: "1524461582917308558", 
     ADMIN_ROLE: "1523692857657917440", 
     ADMIN_ROLE_2: "1524454208282300526", 
     MOD_ROLE: "1523722197510783116"     
 };
+
+const warningsDatabase = {}; 
 
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds, 
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent, 
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildBans
     ] 
 });
 
@@ -28,6 +32,73 @@ client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
     const msgContent = message.content.trim();
+    const args = msgContent.split(/ +/);
+    const command = args[0].toLowerCase();
+
+    const hasAdmin = message.member.roles.cache.has(CONFIG.ADMIN_ROLE) || message.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
+    const hasMod = message.member.roles.cache.has(CONFIG.MOD_ROLE);
+
+    if (!hasAdmin && !hasMod) return;
+
+    const idRegex = /\d{17,19}/;
+    const matchedId = msgContent.match(idRegex);
+    let targetId = matchedId ? matchedId[0] : null;
+
+    if (command === "unmute" || msgContent.includes("ازاله ميوت")) {
+        if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
+        const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
+        if (!targetMember) return message.reply("❌ لم يتم العثور على العضو.");
+        
+        await targetMember.roles.remove(CONFIG.MUTE_ROLE);
+        return message.reply(`✅ تم إزالة رتبة الميوت عن ${targetMember}`);
+    }
+
+    if (command === "unjail" || msgContent.includes("خروج من سجن")) {
+        if (!hasAdmin) return; 
+        if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
+        const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
+        if (!targetMember) return message.reply("❌ لم يتم العثور على العضو.");
+        
+        await targetMember.roles.remove(CONFIG.JAIL_ROLE);
+        return message.reply(`✅ تم إخراج ${targetMember} من السجن.`);
+    }
+
+    if (command === "unban" || msgContent.includes("ازاله باند")) {
+        if (!hasAdmin) return; 
+        if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
+        
+        const unbanned = await message.guild.members.unban(targetId).catch(() => null);
+        if (!unbanned) return message.reply("❌ العضو ليس متبنداً أو الآيدي خاطئ.");
+        return message.reply(`✅ تم فك الباند عن الآيدي: ${targetId}`);
+    }
+
+    if (command === "unwarn" || msgContent.includes("ازاله تحذير")) {
+        if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
+        
+        if (warningsDatabase[targetId] && warningsDatabase[targetId].length > 0) {
+            warningsDatabase[targetId].pop(); 
+            return message.reply(`✅ تم حذف آخر تحذير للعضو. المتبقي له: ${warningsDatabase[targetId].length}`);
+        } else {
+            return message.reply("❌ هذا العضو ليس لديه أي تحذيرات سابقة.");
+        }
+    }
+
+    if (command === "تحذيرات" || command === "warnings") {
+        if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو لعرض تحذيراته.");
+        
+        const userWarns = warningsDatabase[targetId] || [];
+        if (userWarns.length === 0) {
+            return message.reply("ℹ️ هذا العضو لا يوجد لديه أي تحذيرات سابقة.");
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor("#FFA500")
+            .setTitle(`قائمة التحذيرات السابقة للآيدي: ${targetId}`)
+            .setDescription(userWarns.map((w, index) => `**${index + 1}.** ${w.reason} | بواسطة: <@${w.admin}>`).join("\n"))
+            .setTimestamp();
+
+        return message.reply({ embeds: [embed] });
+    }
 
     const isMute = msgContent.includes("mute") || msgContent.includes("ميوت");
     const isBan = msgContent.includes("ban") || msgContent.includes("باند");
@@ -35,22 +106,9 @@ client.on(Events.MessageCreate, async (message) => {
     const isWarn = msgContent.includes("warn") || msgContent.includes("تحذير");
 
     if (!isMute && !isBan && !isJail && !isWarn) return;
-
-    const hasAdmin = message.member.roles.cache.has(CONFIG.ADMIN_ROLE) || message.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
-    const hasMod = message.member.roles.cache.has(CONFIG.MOD_ROLE);
-
-    if (!hasAdmin && !hasMod) return;
     if ((isBan || isJail) && !hasAdmin) return;
 
-    const idRegex = /\d{17,19}/;
-    const matchedId = msgContent.match(idRegex);
-    
-    let targetMember = null;
-    if (message.mentions.members.first()) {
-        targetMember = message.mentions.members.first();
-    } else if (matchedId) {
-        targetMember = await message.guild.members.fetch(matchedId[0]).catch(() => null);
-    }
+    const targetMember = message.mentions.members.first() || (targetId ? await message.guild.members.fetch(targetId).catch(() => null) : null);
 
     if (!targetMember) {
         let currentCommand = isMute ? "ميوت" : isBan ? "باند" : isJail ? "سجن" : "تحذير";
@@ -61,37 +119,37 @@ client.on(Events.MessageCreate, async (message) => {
     let contentMessage = "";
 
     if (isMute) {
-        contentMessage = `🤐 اختيار مدة وسبب الميوت لـ: ${targetMember}`;
+        contentMessage = `🤐 اختيار سبب الميوت لـ: ${targetMember}`;
         selectMenu.setCustomId(`mute_menu_${targetMember.id}`)
             .addOptions([
-                { label: "إزعاج في الرومات الصوتية أو الشات", description: "المدة: 10 دقائق (تايم آوت تلقائي)", value: "10" },
-                { label: "سب وشتم خفيف أو تكرار الكلام (سبام)", description: "المدة: 1 ساعة", value: "60" },
-                { label: "مخالفة القوانين بشكل متكرر", description: "المدة: 1 يوم كامل", value: "1440" }
+                { label: "إزعاج في الرومات الصوتية أو الشات", description: "العقوبة: إعطاء رتبة الميوت", value: "mute_role_reason1" },
+                { label: "سب وشتم خفيف أو تكرار الكلام (سبام)", description: "العقوبة: إعطاء رتبة الميوت", value: "mute_role_reason2" },
+                { label: "مخالفة القوانين بشكل متكرر", description: "العقوبة: إعطاء رتبة الميوت", value: "mute_role_reason3" }
             ]);
     }
     else if (isBan) {
         contentMessage = `🔨 اختيار سبب الباند لـ: ${targetMember}`;
         selectMenu.setCustomId(`ban_menu_${targetMember.id}`)
             .addOptions([
-                { label: "نشر روابط تخريبية أو تهكير", description: "المدة: نهائي (طرد وباند كامل)", value: "scam" },
-                { label: "سب وقذف الأهل أو الذات الإلهية", description: "المدة: نهائي (طرد وباند كامل)", value: "insult" },
-                { label: "تخريب السيرفر بشكل متعمد", description: "المدة: نهائي (طرد وباند كامل)", value: "raid" }
+                { label: "نشر روابط تخريبية أو تهكير", description: "المدة: نهائي", value: "scam" },
+                { label: "سب وقذف الأهل أو الذات الإلهية", description: "المدة: نهائي", value: "insult" },
+                { label: "تخريب السيرفر بشكل متعمد", description: "المدة: نهائي", value: "raid" }
             ]);
     }
     else if (isJail) {
         contentMessage = `⛓️ اختيار سبب السجن لـ: ${targetMember}`;
         selectMenu.setCustomId(`jail_menu_${targetMember.id}`)
             .addOptions([
-                { label: "إثارة المشاكل وعدم احترام الأعضاء", description: "المدة: حتى أمر الإدارة (رتبة السجن)", value: "problems" },
-                { label: "صناعة دراما ونزاعات بالعام", description: "المدة: حتى أمر الإدارة (رتبة السجن)", value: "drama" }
+                { label: "إثارة المشاكل وعدم احترام الأعضاء", description: "المدة: حتى أمر الإدارة", value: "problems" },
+                { label: "صناعة دراما ونزاعات بالعام", description: "المدة: حتى أمر الإدارة", value: "drama" }
             ]);
     }
     else if (isWarn) {
         contentMessage = `⚠️ اختيار سبب التحذير لـ: ${targetMember}`;
         selectMenu.setCustomId(`warn_menu_${targetMember.id}`)
             .addOptions([
-                { label: "مخالفة القوانين للمرة الأولى", description: "المدة: أبدي (تسجيل في اللوج)", value: "first_time" },
-                { label: "إرسال صور أو مقاطع غير لائقة", description: "المدة: أبدي (تسجيل في اللوج)", value: "media" }
+                { label: "مخالفة القوانين للمرة الأولى", description: "النوع: إضافة تحذير للسجل", value: "first_time" },
+                { label: "إرسال صور أو مقاطع غير لائقة", description: "النوع: إضافة تحذير للسجل", value: "media" }
             ]);
     }
 
@@ -119,7 +177,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
-    if (!targetMember) return interaction.reply({ content: "❌ لم يتم العثور على العضو.", ephemeral: true });
+    if (!targetMember && menuType !== "ban") return interaction.reply({ content: "❌ لم يتم العثور على العضو.", ephemeral: true });
 
     const logChannel = interaction.guild.channels.cache.get(CONFIG.LOG_CHANNEL);
     const selectedValue = interaction.values[0];
@@ -130,29 +188,34 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     try {
         if (menuType === "mute") {
-            const minutes = parseInt(selectedValue);
-            await targetMember.timeout(minutes * 60 * 1000, selectedLabel);
-            actionText = `🤐 ميوت لمدة ${minutes} دقائق`;
+            await targetMember.roles.add(CONFIG.MUTE_ROLE);
+            actionText = `🤐 رتبة ميوت مخصصة`;
             color = "#FFFF00";
-            await interaction.reply({ content: `✅ تم إعطاء ميوت لـ ${targetMember} بناءً على: ${selectedLabel}` });
+            await interaction.reply({ content: `✅ تم إعطاء رتبة الميوت لـ ${targetMember} بناءً على: ${selectedLabel}` });
         }
         else if (menuType === "ban") {
-            await targetMember.ban({ reason: selectedLabel });
+            await interaction.guild.members.ban(targetId, { reason: selectedLabel });
             actionText = "🔨 باند نهائي";
             color = "#FF0000";
-            await interaction.reply({ content: `✅ تم تبنيد ${targetMember.user.username} نهائياً بسبب: ${selectedLabel}` });
+            await interaction.reply({ content: `✅ تم تبنيد الآيدي ${targetId} نهائياً بسبب: ${selectedLabel}` });
         }
         else if (menuType === "jail") {
-            const jailRole = interaction.guild.roles.cache.get(CONFIG.JAIL_ROLE);
-            if (jailRole) await targetMember.roles.add(jailRole);
+            await targetMember.roles.add(CONFIG.JAIL_ROLE);
             actionText = "⛓️ سجن (Jail)";
             color = "#8B0000";
             await interaction.reply({ content: `✅ تم سجن ${targetMember} بسبب: ${selectedLabel}` });
         }
         else if (menuType === "warn") {
-            actionText = "⚠️ تحذير (Warn)";
+            if (!warningsDatabase[targetId]) warningsDatabase[targetId] = [];
+            warningsDatabase[targetId].push({
+                reason: selectedLabel,
+                admin: interaction.user.id,
+                timestamp: Date.now()
+            });
+
+            actionText = `⚠️ تحذير (التحذير رقم ${warningsDatabase[targetId].length})`;
             color = "#FFA500";
-            await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${selectedLabel}` });
+            await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${selectedLabel} (إجمالي التحذيرات: ${warningsDatabase[targetId].length})` });
         }
 
         await interaction.message.delete().catch(() => {});
@@ -162,7 +225,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 .setColor(color)
                 .setTitle(`عقوبة مستقلة: ${actionText}`)
                 .addFields(
-                    { name: "العضو المستهدف:", value: `${targetMember.user.tag} (${targetMember.id})`, inline: true },
+                    { name: "العضو المستهدف:", value: `<@${targetId}> (${targetId})`, inline: true },
                     { name: "الإداري المسؤول:", value: `${interaction.user.tag}`, inline: true },
                     { name: "السبب المختار:", value: selectedLabel }
                 ).setTimestamp();
@@ -171,7 +234,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     } catch (err) {
         console.error(err);
-        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات رتبة البوت.", ephemeral: true });
+        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات رتبة البوت وترتيبها.", ephemeral: true });
     }
 });
 
