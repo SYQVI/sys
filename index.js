@@ -5,8 +5,8 @@ const {
 
 // الإعدادات الأساسية (ضع آيديات سيرفرك هنا)
 const CONFIG = {
-    LOG_CHANNEL: "آيدي_روم_اللوج", 
-    JAIL_ROLE: "آيدي_رتبة_السجن"   
+    LOG_CHANNEL: "1524441464828985384", 
+    JAIL_ROLE: "1524441575118082068"   
 };
 
 const client = new Client({ 
