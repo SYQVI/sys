@@ -7,6 +7,7 @@ const CONFIG = {
     LOG_CHANNEL: "1524441464828985384", 
     JAIL_ROLE: "1524441575118082068",
     ADMIN_ROLE: "1523692857657917440", 
+    ADMIN_ROLE_2: "1524454208282300526", 
     MOD_ROLE: "1523722197510783116"     
 };
 
@@ -35,7 +36,7 @@ client.on(Events.MessageCreate, async (message) => {
 
     if (!isMute && !isBan && !isJail && !isWarn) return;
 
-    const hasAdmin = message.member.roles.cache.has(CONFIG.ADMIN_ROLE);
+    const hasAdmin = message.member.roles.cache.has(CONFIG.ADMIN_ROLE) || message.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
     const hasMod = message.member.roles.cache.has(CONFIG.MOD_ROLE);
 
     if (!hasAdmin && !hasMod) return;
@@ -106,7 +107,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const menuType = parts[0]; 
     const targetId = parts[2];
     
-    const hasAdmin = interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE);
+    const hasAdmin = interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE) || interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
     const hasMod = interaction.member.roles.cache.has(CONFIG.MOD_ROLE);
 
     if (!hasAdmin && !hasMod) {
