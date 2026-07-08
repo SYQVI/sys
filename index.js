@@ -18,36 +18,49 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, () => { 
-    console.log(`=== 👮‍♂️ نظام العقوبات المنفصلة جاهز ===`);
+    console.log(`=== 👮‍♂️ نظام العقوبات الذكي جاهز ومعدل ===`);
 });
 
-// استقبال الكلمات المباشرة
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
-    const args = message.content.trim().split(/ +/);
-    const command = args.shift().toLowerCase();
+    const msgContent = message.content.trim();
 
-    // التحقق من أن الكلمة المكتوبة هي إحدى العقوبات
-    const availableCommands = ["mute", "ميوت", "ban", "باند", "jail", "سجن", "warn", "تحذير"];
-    if (!availableCommands.includes(command)) return;
+    // الكلمات المفتاحية للعقوبات
+    const isMute = msgContent.includes("mute") || msgContent.includes("ميوت");
+    const isBan = msgContent.includes("ban") || msgContent.includes("باند");
+    const isJail = msgContent.includes("jail") || msgContent.includes("سجن");
+    const isWarn = msgContent.includes("warn") || msgContent.includes("تحذير");
+
+    // إذا لم تكن الرسالة تحتوي على أي عقوبة نوقف الكود
+    if (!isMute && !isBan && !isJail && !isWarn) return;
 
     // التحقق من صلاحيات الإداري
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
         return message.reply("❌ ليس لديك صلاحية استخدام هذا الأمر.");
     }
 
-    // جلب العضو
-    const targetMember = message.mentions.members.first() || message.guild.members.cache.get(args[0]);
+    // استخراج الآيدي أو المنشن من الرسالة كاملة (حل مشكلة الترتيب العربي)
+    const idRegex = /\d{17,19}/; // يبحث عن أي رقم يتكون من 17 إلى 19 خانة (الآيدي)
+    const matchedId = msgContent.match(idRegex);
+    
+    let targetMember = null;
+    if (message.mentions.members.first()) {
+        targetMember = message.mentions.members.first();
+    } else if (matchedId) {
+        targetMember = await message.guild.members.fetch(matchedId[0]).catch(() => null);
+    }
+
     if (!targetMember) {
-        return message.reply(`⚠️ يرجى تحديد العضو. مثال: \`${command} 1234567890\``);
+        let currentCommand = isMute ? "ميوت" : isBan ? "باند" : isJail ? "سجن" : "تحذير";
+        return message.reply(`⚠️ يرجى تحديد العضو بشكل صحيح. مثال: \`${currentCommand} 1197508804544315513\``);
     }
 
     let selectMenu = new StringSelectMenuBuilder().setPlaceholder("قم بإختيار القانون المراد تطبيقه");
     let contentMessage = "";
 
-    // 1. منيو الميوت المنفصل
-    if (command === "mute" || command === "ميوت") {
+    // 1. منيو الميوت
+    if (isMute) {
         contentMessage = `🤐 اختيار مدة وسبب الميوت لـ: ${targetMember}`;
         selectMenu.setCustomId(`mute_menu_${targetMember.id}`)
             .addOptions([
@@ -56,8 +69,8 @@ client.on(Events.MessageCreate, async (message) => {
                 { label: "مخالفة القوانين بشكل متكرر", description: "المدة: 1 يوم كامل", value: "1440" }
             ]);
     }
-    // 2. منيو الباند المنفصل
-    else if (command === "ban" || command === "باند") {
+    // 2. منيو الباند
+    else if (isBan) {
         contentMessage = `🔨 اختيار سبب الباند لـ: ${targetMember}`;
         selectMenu.setCustomId(`ban_menu_${targetMember.id}`)
             .addOptions([
@@ -66,8 +79,8 @@ client.on(Events.MessageCreate, async (message) => {
                 { label: "تخريب السيرفر بشكل متعمد", description: "المدة: نهائي (طرد وباند كامل)", value: "raid" }
             ]);
     }
-    // 3. منيو السجن المنفصل
-    else if (command === "jail" || command === "سجن") {
+    // 3. منيو السجن
+    else if (isJail) {
         contentMessage = `⛓️ اختيار سبب السجن لـ: ${targetMember}`;
         selectMenu.setCustomId(`jail_menu_${targetMember.id}`)
             .addOptions([
@@ -75,8 +88,8 @@ client.on(Events.MessageCreate, async (message) => {
                 { label: "صناعة دراما ونزاعات بالعام", description: "المدة: حتى أمر الإدارة (رتبة السجن)", value: "drama" }
             ]);
     }
-    // 4. منيو التحذير المنفصل
-    else if (command === "warn" || command === "تحذير") {
+    // 4. منيو التحذير
+    else if (isWarn) {
         contentMessage = `⚠️ اختيار سبب التحذير لـ: ${targetMember}`;
         selectMenu.setCustomId(`warn_menu_${targetMember.id}`)
             .addOptions([
@@ -89,13 +102,13 @@ client.on(Events.MessageCreate, async (message) => {
     await message.reply({ content: contentMessage, components: [row] });
 });
 
-// معالجة الضغط على أي منيو وتطبيق العقوبة
+// معالجة التفاعل مع القوائم (تبقى كما هي)
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isStringSelectMenu()) return;
 
     const customId = interaction.customId;
     const parts = customId.split("_");
-    const menuType = parts[0]; // mute, ban, jail, warn
+    const menuType = parts[0]; 
     const targetId = parts[2];
     
     if (!interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
@@ -113,7 +126,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     let color = "#000000";
 
     try {
-        // تنفيذ الميوت المنفصل
         if (menuType === "mute") {
             const minutes = parseInt(selectedValue);
             await targetMember.timeout(minutes * 60 * 1000, selectedLabel);
@@ -121,14 +133,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
             color = "#FFFF00";
             await interaction.reply({ content: `✅ تم إعطاء ميوت لـ ${targetMember} بناءً على: ${selectedLabel}` });
         }
-        // تنفيذ الباند المنفصل
         else if (menuType === "ban") {
             await targetMember.ban({ reason: selectedLabel });
             actionText = "🔨 باند نهائي";
             color = "#FF0000";
             await interaction.reply({ content: `✅ تم تبنيد ${targetMember.user.username} نهائياً بسبب: ${selectedLabel}` });
         }
-        // تنفيذ السجن المنفصل
         else if (menuType === "jail") {
             const jailRole = interaction.guild.roles.cache.get(CONFIG.JAIL_ROLE);
             if (jailRole) await targetMember.roles.add(jailRole);
@@ -136,17 +146,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
             color = "#8B0000";
             await interaction.reply({ content: `✅ تم سجن ${targetMember} بسبب: ${selectedLabel}` });
         }
-        // تنفيذ التحذير المنفصل
         else if (menuType === "warn") {
             actionText = "⚠️ تحذير (Warn)";
             color = "#FFA500";
             await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${selectedLabel}` });
         }
 
-        // حذف المنيو بعد الاختيار
         await interaction.message.delete().catch(() => {});
 
-        // إرسال اللوج
         if (logChannel) {
             const logEmbed = new EmbedBuilder()
                 .setColor(color)
@@ -161,7 +168,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     } catch (err) {
         console.error(err);
-        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات البوت الرتبوية.", ephemeral: true });
+        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات رتبة البوت.", ephemeral: true });
     }
 });
 
