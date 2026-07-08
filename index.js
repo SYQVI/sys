@@ -240,7 +240,7 @@ client.on(Events.MessageCreate, async (message) => {
                                targetMember.roles.cache.has(CONFIG.SLASH_ALLOWED_ROLE);
 
     if (isTargetAdminOrMod) {
-        return message.reply("❌ **خطأ:** لا يمكنك إعطاء عقوبة (ميوت/باند/سجن/تحذير) لأحد أفراد طاقم الإدارة أو المشرفين!");
+        return message.reply("❌ **خطأ:** لا يمكنك إعطاء عقوبة لأحد أفراد طاقم الإدارة أو العليا!");
     }
 
     let selectMenu = new StringSelectMenuBuilder().setPlaceholder("اضغط لأختيار السبب");
