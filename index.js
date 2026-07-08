@@ -1,7 +1,17 @@
 const { 
     Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, 
-    StringSelectMenuBuilder, Events 
+    StringSelectMenuBuilder, Events, MessageFlags 
 } = require("discord.js");
+const http = require("http");
+
+// حل مشكلة منفذ (Port) منصة Render لمنع الـ Timed Out
+const port = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is alive!\n');
+}).listen(port, () => {
+    console.log(`Server is listening on port ${port}`);
+});
 
 const CONFIG = {
     LOG_CHANNEL: "1524441464828985384", 
@@ -169,15 +179,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const hasMod = interaction.member.roles.cache.has(CONFIG.MOD_ROLE);
 
     if (!hasAdmin && !hasMod) {
-        return interaction.reply({ content: "❌ لا تملك الرتبة المطلوبة للتحكم في هذا المنيو.", ephemeral: true });
+        return interaction.reply({ content: "❌ لا تملك الرتبة المطلوبة للتحكم في هذا المنيو.", flags: MessageFlags.Ephemeral });
     }
 
     if ((menuType === "ban" || menuType === "jail") && !hasAdmin) {
-        return interaction.reply({ content: "❌ رتبتك لا تسمح بتنفيذ عمليات الباند والسجن.", ephemeral: true });
+        return interaction.reply({ content: "❌ رتبتك لا تسمح بتنفيذ عمليات الباند والسجن.", flags: MessageFlags.Ephemeral });
     }
 
     const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
-    if (!targetMember && menuType !== "ban") return interaction.reply({ content: "❌ لم يتم العثور على العضو.", ephemeral: true });
+    if (!targetMember && menuType !== "ban") return interaction.reply({ content: "❌ لم يتم العثور على العضو.", flags: MessageFlags.Ephemeral });
 
     const logChannel = interaction.guild.channels.cache.get(CONFIG.LOG_CHANNEL);
     const selectedValue = interaction.values[0];
@@ -231,14 +241,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await interaction.message.delete().catch(() => {});
 
         if (logChannel) {
-            // صياغة اللوج النصي تماماً مثل شكل الصورة المطلوبة
             const logMessage = `**type: ${typeText}**\n**member :** <@${targetId}>\n**admin :** <@${interaction.user.id}>\n**reason :** ${selectedLabel}`;
             logChannel.send({ content: logMessage });
         }
 
     } catch (err) {
         console.error(err);
-        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات رتبة البوت وترتيبها.", ephemeral: true });
+        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات رتبة البوت وترتيبها وترتيب رتبة البوت بالسيرفر.", flags: MessageFlags.Ephemeral });
     }
 });
 
