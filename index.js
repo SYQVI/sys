@@ -43,48 +43,66 @@ client.on(Events.MessageCreate, async (message) => {
 
     const msgContent = message.content.trim();
     const args = msgContent.split(/ +/);
-    const command = args[0].toLowerCase();
+    if (args.length === 0) return;
 
+    // فحص صلاحيات المسؤولين أولاً
     const hasAdmin = message.member.roles.cache.has(CONFIG.ADMIN_ROLE) || message.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
     const hasMod = message.member.roles.cache.has(CONFIG.MOD_ROLE);
-
     if (!hasAdmin && !hasMod) return;
 
+    const firstWord = args[0].toLowerCase();
+    const lastWord = args[args.length - 1].toLowerCase();
+
+    let activeCommand = null;
+
+    // فحص الأوامر العادية وأوامر الإزالة
+    if (["unmute", "ازاله_ميوت", "إزالة_ميوت"].includes(firstWord) || msgContent.startsWith("ازاله ميوت") || msgContent.startsWith("إزالة ميوت")) activeCommand = "unmute";
+    else if (["unjail", "خروج_من_سجن", "خروج_من_السجن"].includes(firstWord) || msgContent.startsWith("خروج من سجن") || msgContent.startsWith("خروج من السجن")) activeCommand = "unjail";
+    else if (["unban", "ازاله_باند", "إزالة_باند"].includes(firstWord) || msgContent.startsWith("ازاله باند") || msgContent.startsWith("إزالة باند")) activeCommand = "unban";
+    else if (["unwarn", "ازاله_تحذير", "إزالة_تحذير"].includes(firstWord) || msgContent.startsWith("ازاله تحذير") || msgContent.startsWith("إزالة تحذير")) activeCommand = "unwarn";
+    else if (["تحذيرات", "warnings"].includes(firstWord)) activeCommand = "warnings";
+    
+    // فحص صارم: يجب أن تكون رغبة المعاقبة صريحة (إما أول كلمة أو آخر كلمة فقط بالرسالة) لضمان عدم تداخلها مع الكلام
+    else if (firstWord === "ميوت" || firstWord === "mute" || lastWord === "ميوت" || lastWord === "mute") activeCommand = "mute";
+    else if (firstWord === "باند" || firstWord === "ban" || lastWord === "باند" || lastWord === "ban") activeCommand = "ban";
+    else if (firstWord === "سجن" || firstWord === "jail" || lastWord === "سجن" || lastWord === "jail") activeCommand = "jail";
+    else if (firstWord === "تحذير" || firstWord === "warn" || lastWord === "تحذير" || lastWord === "warn") activeCommand = "warn";
+
+    if (!activeCommand) return;
+
+    // استخراج الآيدي
     const idRegex = /\d{17,19}/;
     const matchedId = msgContent.match(idRegex);
     let targetId = matchedId ? matchedId[0] : null;
 
-    if (command === "unmute" || msgContent.includes("ازاله ميوت")) {
+    // تنفيذ أوامر فك العقوبات
+    if (activeCommand === "unmute") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
         const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
-        if (!targetMember) return message.reply("❌ لم يتم العثور على العضو.");
-        
+        if (!targetMember) return message.reply("❌ لم يتم العثور على العضو في السيرفر.");
         await targetMember.roles.remove(CONFIG.MUTE_ROLE);
-        return message.reply(`✅ تم إزالة رتبة الميوت عن ${targetMember}`);
+        return message.reply(`✅ تم إزالة رتبة الميوت عن <@${targetId}>`);
     }
 
-    if (command === "unjail" || msgContent.includes("خروج من سجن")) {
+    if (activeCommand === "unjail") {
         if (!hasAdmin) return; 
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
         const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
-        if (!targetMember) return message.reply("❌ لم يتم العثور على العضو.");
-        
+        if (!targetMember) return message.reply("❌ لم يتم العثور على العضو في السيرفر.");
         await targetMember.roles.remove(CONFIG.JAIL_ROLE);
-        return message.reply(`✅ تم إخراج ${targetMember} من السجن.`);
+        return message.reply(`✅ تم إخراج <@${targetId}> من السجن.`);
     }
 
-    if (command === "unban" || msgContent.includes("ازاله باند")) {
+    if (activeCommand === "unban") {
         if (!hasAdmin) return; 
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
-        
         const unbanned = await message.guild.members.unban(targetId).catch(() => null);
         if (!unbanned) return message.reply("❌ العضو ليس متبنداً أو الآيدي خاطئ.");
         return message.reply(`✅ تم فك الباند عن الآيدي: ${targetId}`);
     }
 
-    if (command === "unwarn" || msgContent.includes("ازاله تحذير")) {
+    if (activeCommand === "unwarn") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
-        
         if (warningsDatabase[targetId] && warningsDatabase[targetId].length > 0) {
             warningsDatabase[targetId].pop(); 
             return message.reply(`✅ تم حذف آخر تحذير للعضو. المتبقي له: ${warningsDatabase[targetId].length}`);
@@ -93,42 +111,34 @@ client.on(Events.MessageCreate, async (message) => {
         }
     }
 
-    if (command === "تحذيرات" || command === "warnings") {
+    if (activeCommand === "warnings") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو لعرض تحذيراته.");
-        
         const userWarns = warningsDatabase[targetId] || [];
         if (userWarns.length === 0) {
             return message.reply("ℹ️ هذا العضو لا يوجد لديه أي تحذيرات سابقة.");
         }
-
         const embed = new EmbedBuilder()
             .setColor("#FFA500")
             .setTitle(`قائمة التحذيرات السابقة للآيدي: ${targetId}`)
             .setDescription(userWarns.map((w, index) => `**${index + 1}.** ${w.reason} | بواسطة: <@${w.admin}>`).join("\n"))
             .setTimestamp();
-
         return message.reply({ embeds: [embed] });
     }
 
-    const isMute = msgContent.includes("mute") || msgContent.includes("ميوت");
-    const isBan = msgContent.includes("ban") || msgContent.includes("باند");
-    const isJail = msgContent.includes("jail") || msgContent.includes("سجن");
-    const isWarn = msgContent.includes("warn") || msgContent.includes("تحذير");
-
-    if (!isMute && !isBan && !isJail && !isWarn) return;
-    if ((isBan || isJail) && !hasAdmin) return;
+    // تصفية رتب الإدارة للباند والسجن
+    if ((activeCommand === "ban" || activeCommand === "jail") && !hasAdmin) return;
 
     const targetMember = message.mentions.members.first() || (targetId ? await message.guild.members.fetch(targetId).catch(() => null) : null);
 
     if (!targetMember) {
-        let currentCommand = isMute ? "ميوت" : isBan ? "باند" : isJail ? "سجن" : "تحذير";
-        return message.reply(`⚠️ يرجى تحديد العضو بشكل صحيح. مثال: \`${currentCommand} 1197508804544315513\``);
+        let currentCommandName = activeCommand === "mute" ? "ميوت" : activeCommand === "ban" ? "باند" : activeCommand === "jail" ? "سجن" : "تحذير";
+        return message.reply(`⚠️ يرجى تحديد العضو بشكل صحيح. مثال: \`${currentCommandName} 1197508804544315513\` أو \`1197508804544315513 ${currentCommandName}\``);
     }
 
     let selectMenu = new StringSelectMenuBuilder().setPlaceholder("قم بإختيار القانون المراد تطبيقه");
     let contentMessage = "";
 
-    if (isMute) {
+    if (activeCommand === "mute") {
         contentMessage = `🤐 اختيار سبب الميوت لـ: ${targetMember}`;
         selectMenu.setCustomId(`mute_menu_${targetMember.id}`)
             .addOptions([
@@ -137,7 +147,7 @@ client.on(Events.MessageCreate, async (message) => {
                 { label: "مخالفة القوانين بشكل متكرر", description: "العقوبة: إعطاء رتبة الميوت", value: "mute_role_reason3" }
             ]);
     }
-    else if (isBan) {
+    else if (activeCommand === "ban") {
         contentMessage = `🔨 اختيار سبب الباند لـ: ${targetMember}`;
         selectMenu.setCustomId(`ban_menu_${targetMember.id}`)
             .addOptions([
@@ -146,7 +156,7 @@ client.on(Events.MessageCreate, async (message) => {
                 { label: "تخريب السيرفر بشكل متعمد", description: "المدة: نهائي", value: "raid" }
             ]);
     }
-    else if (isJail) {
+    else if (activeCommand === "jail") {
         contentMessage = `⛓️ اختيار سبب السجن لـ: ${targetMember}`;
         selectMenu.setCustomId(`jail_menu_${targetMember.id}`)
             .addOptions([
@@ -154,7 +164,7 @@ client.on(Events.MessageCreate, async (message) => {
                 { label: "صناعة دراما ونزاعات بالعام", description: "المدة: حتى أمر الإدارة", value: "drama" }
             ]);
     }
-    else if (isWarn) {
+    else if (activeCommand === "warn") {
         contentMessage = `⚠️ اختيار سبب التحذير لـ: ${targetMember}`;
         selectMenu.setCustomId(`warn_menu_${targetMember.id}`)
             .addOptions([
