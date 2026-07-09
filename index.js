@@ -321,7 +321,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (memberCheck && memberCheck.roles.cache.has(CONFIG.MUTE_ROLE)) {
                         await memberCheck.roles.remove(CONFIG.MUTE_ROLE).catch(() => {});
                         if (logChannel) {
-                            logChannel.send({ content: `⏰ **[إزالة تلقائية]** تم إزالة رتبة الميوت تلقائياً عن <@${targetId}> لانتهاء المدة (${durationText}).` });
+                            logChannel.send({ content: `انتهت مدة العقوبة الزمنية، وتم إلغاء الميوت عن العضو <@${targetId}> لانتهاء المدة (${durationText}).` });
                         }
                     }
                 }, durationMs);
@@ -343,7 +343,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (memberCheck && memberCheck.roles.cache.has(CONFIG.JAIL_ROLE)) {
                         await memberCheck.roles.remove(CONFIG.JAIL_ROLE).catch(() => {});
                         if (logChannel) {
-                            logChannel.send({ content: `⏰ **[إزالة تلقائية]** تم إخراج <@${targetId}> من السجن تلقائياً لانتهاء المدة (${durationText}).` });
+                            logChannel.send({ content: `انتهت مدة العقوبة الزمنية، وتم إلغاء السجن عن العضو <@${targetId}> من السجن تلقائياً لانتهاء المدة (${durationText}).` });
                         }
                     }
                 }, durationMs);
