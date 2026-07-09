@@ -301,9 +301,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     let typeText = menuType;
 
-    // استخراج الدقائق بدقة وإعداد الحذف التلقائي
+    // فحص ذكي وموثوق للمدة الزمنية من الـ Value أو الـ Label
     let durationMs = 0;
-    const timeMatch = durationText.match(/(\d+)\s*د/);
+    const timeMatch = selectedValue.match(/_(\d+)/) || durationText.match(/(\d+)\s*د/);
     if (timeMatch) {
         const minutes = parseInt(timeMatch[1], 10);
         durationMs = minutes * 60 * 1000;
