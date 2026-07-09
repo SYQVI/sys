@@ -301,11 +301,31 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     let typeText = menuType;
 
+    // استخراج الدقائق بدقة وإعداد الحذف التلقائي
+    let durationMs = 0;
+    const timeMatch = durationText.match(/(\d+)\s*د/);
+    if (timeMatch) {
+        const minutes = parseInt(timeMatch[1], 10);
+        durationMs = minutes * 60 * 1000;
+    }
+
     try {
         if (menuType === "mute") {
             await targetMember.roles.add(CONFIG.MUTE_ROLE);
             typeText = "voice"; 
             await interaction.reply({ content: `✅ تم إعطاء الميوت لـ ${targetMember} بناءً على: ${cleanReason}` });
+
+            if (durationMs > 0) {
+                setTimeout(async () => {
+                    const memberCheck = await interaction.guild.members.fetch(targetId).catch(() => null);
+                    if (memberCheck && memberCheck.roles.cache.has(CONFIG.MUTE_ROLE)) {
+                        await memberCheck.roles.remove(CONFIG.MUTE_ROLE).catch(() => {});
+                        if (logChannel) {
+                            logChannel.send({ content: `⏰ **[إزالة تلقائية]** تم إزالة رتبة الميوت تلقائياً عن <@${targetId}> لانتهاء المدة (${durationText}).` });
+                        }
+                    }
+                }, durationMs);
+            }
         }
         else if (menuType === "ban") {
             await interaction.guild.members.ban(targetId, { reason: cleanReason });
@@ -316,6 +336,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await targetMember.roles.add(CONFIG.JAIL_ROLE);
             typeText = "jail";
             await interaction.reply({ content: `✅ تم سجن ${targetMember} بسبب: ${cleanReason}` });
+
+            if (durationMs > 0) {
+                setTimeout(async () => {
+                    const memberCheck = await interaction.guild.members.fetch(targetId).catch(() => null);
+                    if (memberCheck && memberCheck.roles.cache.has(CONFIG.JAIL_ROLE)) {
+                        await memberCheck.roles.remove(CONFIG.JAIL_ROLE).catch(() => {});
+                        if (logChannel) {
+                            logChannel.send({ content: `⏰ **[إزالة تلقائية]** تم إخراج <@${targetId}> من السجن تلقائياً لانتهاء المدة (${durationText}).` });
+                        }
+                    }
+                }, durationMs);
+            }
         }
         else if (menuType === "warn") {
             if (!warningsDatabase[targetId]) warningsDatabase[targetId] = [];
