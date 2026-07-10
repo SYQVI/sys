@@ -3,11 +3,34 @@ const {
     StringSelectMenuBuilder, Events, MessageFlags, REST, Routes, SlashCommandBuilder
 } = require("discord.js");
 const http = require("http");
-const path = require("path"); // استدعاء مكتبة المسارات لتحديد موقع الحفظ
-const { QuickDB } = require("quick.db"); 
+const fs = require("fs");
+const path = require("path");
 
-// تعديل السطر لإنشاء ملف حفظ ثابت باسم database.sqlite داخل مجلد المشروع
-const db = new QuickDB({ filePath: path.join(__dirname, "database.sqlite") }); 
+// مسار ثابت لملف الـ JSON
+const DB_PATH = path.join(__dirname, "warns_database.json");
+
+// دالة لجلب البيانات من الملف
+function getWarnsData() {
+    try {
+        if (!fs.existsSync(DB_PATH)) {
+            fs.writeFileSync(DB_PATH, JSON.stringify({}));
+        }
+        const fileContent = fs.readFileSync(DB_PATH, "utf8");
+        return JSON.parse(fileContent || "{}");
+    } catch (error) {
+        console.error("خطأ في قراءة قاعدة البيانات:", error);
+        return {};
+    }
+}
+
+// دالة لحفظ البيانات في الملف فوراُ
+function saveWarnsData(data) {
+    try {
+        fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.error("خطأ في حفظ قاعدة البيانات:", error);
+    }
+}
 
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
@@ -59,7 +82,7 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, async () => { 
-    console.log(`✅ البوت جاهز وشغال باستخدام قاعدة بيانات ومسار حفظ ثابت!`);
+    console.log(`✅ البوت جاهز وشغال باستخدام نظام ملفات JSON الثابت!`);
     const commands = [
         new SlashCommandBuilder()
             .setName("اضف_سبب")
@@ -124,7 +147,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         PUNISHMENT_REASONS[type].push({
             label: displayLabel,
-            description: `عقوبة مضافة بواسطة الإدارة العليا`,
+            description: `عقوبة مخصصة مضافة بواسطة الإدارة العليا`,
             value: uniqueValue
         });
 
@@ -248,11 +271,13 @@ client.on(Events.MessageCreate, async (message) => {
     if (activeCommand === "unwarn") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
         
-        let userWarns = await db.get(`warns_${targetId}`) || [];
+        let allData = getWarnsData();
+        let userWarns = allData[targetId] || [];
 
         if (userWarns.length > 0) {
             userWarns.pop(); 
-            await db.set(`warns_${targetId}`, userWarns); 
+            allData[targetId] = userWarns;
+            saveWarnsData(allData);
 
             if (logChannel) {
                 const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
@@ -277,7 +302,8 @@ client.on(Events.MessageCreate, async (message) => {
     if (activeCommand === "warnings") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو لعرض تحذيراته.");
         
-        const userWarns = await db.get(`warns_${targetId}`) || [];
+        const allData = getWarnsData();
+        const userWarns = allData[targetId] || [];
 
         if (userWarns.length === 0) {
             return message.reply("ℹ️ هذا العضو لا يوجد لديه أي تحذيرات سابقة.");
@@ -499,7 +525,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const selectedOption = interaction.component.options.find(o => o.value === selectedValue);
         const cleanReason = selectedOption.label.split("،")[0].trim();
 
-        let userWarns = await db.get(`warns_${targetId}`) || [];
+        let allData = getWarnsData();
+        let userWarns = allData[targetId] || [];
 
         userWarns.push({
             reason: cleanReason,
@@ -507,7 +534,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
             timestamp: Date.now()
         });
 
-        await db.set(`warns_${targetId}`, userWarns);
+        allData[targetId] = userWarns;
+        saveWarnsData(allData);
 
         const totalWarns = userWarns.length;
 
