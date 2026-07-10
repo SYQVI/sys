@@ -458,7 +458,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     } catch (err) {
         console.error(err);
-        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات رتبة البوت وترتيبها بالسيرفر.", flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات ارفعها يعني رتبة البوت وترتيبها بالسيرفر.", flags: MessageFlags.Ephemeral });
     }
 });
 
