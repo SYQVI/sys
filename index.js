@@ -6,31 +6,44 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-// مسار ثابت لملف الـ JSON
+// مسار ملف الحفظ الثابت
 const DB_PATH = path.join(__dirname, "warns_database.json");
 
-// دالة لجلب البيانات من الملف
-function getWarnsData() {
+// ذاكرة مؤقتة لسرعة القراءة والاستقرار
+let localWarnsCache = {};
+
+// دالة فحص وتأمين قاعدة البيانات عند تشغيل البوت
+function initDatabase() {
     try {
         if (!fs.existsSync(DB_PATH)) {
-            fs.writeFileSync(DB_PATH, JSON.stringify({}));
+            fs.writeFileSync(DB_PATH, JSON.stringify({}, null, 2), "utf8");
+            console.log("📁 تم إنشاء ملف قاعدة بيانات جديد ونظيف.");
         }
-        const fileContent = fs.readFileSync(DB_PATH, "utf8");
-        return JSON.parse(fileContent || "{}");
-    } catch (error) {
-        console.error("خطأ في قراءة قاعدة البيانات:", error);
-        return {};
+        const content = fs.readFileSync(DB_PATH, "utf8").trim();
+        if (!content || content === "") {
+            fs.writeFileSync(DB_PATH, JSON.stringify({}, null, 2), "utf8");
+            localWarnsCache = {};
+        } else {
+            localWarnsCache = JSON.parse(content);
+        }
+        console.log("✅ تم تحميل بيانات التحذيرات بنجاح إلى الذاكرة التلقائية.");
+    } catch (e) {
+        console.error("⚠️ فشل قراءة الملف، سيتم تصفير الذاكرة لتجنب الكراش:", e);
+        localWarnsCache = {};
     }
 }
 
-// دالة لحفظ البيانات في الملف فوراُ
-function saveWarnsData(data) {
+// دالة الحفظ الفوري
+function saveToDisk() {
     try {
-        fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+        fs.writeFileSync(DB_PATH, JSON.stringify(localWarnsCache, null, 2), "utf8");
     } catch (error) {
-        console.error("خطأ في حفظ قاعدة البيانات:", error);
+        console.error("❌ خطأ أثناء حفظ البيانات على القرص:", error);
     }
 }
+
+// تشغيل الفحص أولاً
+initDatabase();
 
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
@@ -82,7 +95,7 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, async () => { 
-    console.log(`✅ البوت جاهز وشغال باستخدام نظام ملفات JSON الثابت!`);
+    console.log(`✅ النظام المطور جاهز وشغال بالكامل بدون قلق من الريستارت!`);
     const commands = [
         new SlashCommandBuilder()
             .setName("اضف_سبب")
@@ -147,7 +160,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         PUNISHMENT_REASONS[type].push({
             label: displayLabel,
-            description: `عقوبة مضافة بواسطة الإدارة العليا`,
+            description: `عقوبة مخصصة مضافة بواسطة الإدارة العليا`,
             value: uniqueValue
         });
 
@@ -271,13 +284,12 @@ client.on(Events.MessageCreate, async (message) => {
     if (activeCommand === "unwarn") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
         
-        let allData = getWarnsData();
-        let userWarns = allData[targetId] || [];
+        let userWarns = localWarnsCache[targetId] || [];
 
         if (userWarns.length > 0) {
             userWarns.pop(); 
-            allData[targetId] = userWarns;
-            saveWarnsData(allData);
+            localWarnsCache[targetId] = userWarns;
+            saveToDisk(); // حفظ فوري
 
             if (logChannel) {
                 const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
@@ -302,8 +314,7 @@ client.on(Events.MessageCreate, async (message) => {
     if (activeCommand === "warnings") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو لعرض تحذيراته.");
         
-        const allData = getWarnsData();
-        const userWarns = allData[targetId] || [];
+        const userWarns = localWarnsCache[targetId] || [];
 
         if (userWarns.length === 0) {
             return message.reply("ℹ️ هذا العضو لا يوجد لديه أي تحذيرات سابقة.");
@@ -525,19 +536,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const selectedOption = interaction.component.options.find(o => o.value === selectedValue);
         const cleanReason = selectedOption.label.split("،")[0].trim();
 
-        let allData = getWarnsData();
-        let userWarns = allData[targetId] || [];
-
-        userWarns.push({
+        if (!localWarnsCache[targetId]) localWarnsCache[targetId] = [];
+        
+        localWarnsCache[targetId].push({
             reason: cleanReason,
             admin: interaction.user.id,
             timestamp: Date.now()
         });
 
-        allData[targetId] = userWarns;
-        saveWarnsData(allData);
+        saveToDisk(); // حفظ فوري ومباشر في السيرفر
 
-        const totalWarns = userWarns.length;
+        const totalWarns = localWarnsCache[targetId].length;
 
         const dmEmbed = new EmbedBuilder()
             .setColor("#FFA500")
