@@ -285,4 +285,257 @@ client.on(Events.MessageCreate, async (message) => {
     const targetMember = message.mentions.members.first() || (targetId ? await message.guild.members.fetch(targetId).catch(() => null) : null);
 
     if (!targetMember) {
-        let currentCommandName = activeCommand === "mute" ? "
+        let currentCommandName = activeCommand === "mute" ? "ميوت" : activeCommand === "ban" ? "باند" : activeCommand === "jail" ? "سجن" : "تحذير";
+        return message.reply(`⚠️ يرجى تحديد العضو بشكل صحيح. مثال: \`${currentCommandName} 1197508804544315513\` أو \`1197508804544315513 ${currentCommandName}\``);
+    }
+
+    const isTargetAdminOrMod = targetMember.roles.cache.has(CONFIG.ADMIN_ROLE) || 
+                               targetMember.roles.cache.has(CONFIG.ADMIN_ROLE_2) || 
+                               targetMember.roles.cache.has(CONFIG.MOD_ROLE) ||
+                               targetMember.roles.cache.has(CONFIG.SLASH_ALLOWED_ROLE);
+
+    if (isTargetAdminOrMod) {
+        return message.reply("❌ ** خطأ:** لا يمكنك إعطاء عقوبة لأحد أفراد طاقم الإدارة أو العليا!");
+    }
+
+    if (!PUNISHMENT_REASONS[activeCommand] || PUNISHMENT_REASONS[activeCommand].length === 0) {
+        return message.reply(`❌ لا توجد أي أسباب مضافة لقائمة الـ **${activeCommand}** حالياً. استخدم أمر \`/اضف_سبب\` أولاً.`);
+    }
+
+    // هنا يتم عزل وصناعة الـ String Select Menu مستقل لكل عقوبة بناء على نوع الأمر
+    let selectMenu = new StringSelectMenuBuilder().setPlaceholder("اضغط لأختيار السبب لتنفيذ العقوبة");
+    let contentMessage = `<@${targetMember.id}> , رجاءً قم بأختيار السبب المخصص`;
+
+    if (activeCommand === "mute") {
+        selectMenu.setCustomId(`mutemenu_${targetMember.id}`).addOptions(PUNISHMENT_REASONS.mute);
+    } else if (activeCommand === "ban") {
+        selectMenu.setCustomId(`banmenu_${targetMember.id}`).addOptions(PUNISHMENT_REASONS.ban);
+    } else if (activeCommand === "jail") {
+        selectMenu.setCustomId(`jailmenu_${targetMember.id}`).addOptions(PUNISHMENT_REASONS.jail);
+    } else if (activeCommand === "warn") {
+        selectMenu.setCustomId(`warnmenu_${targetMember.id}`).addOptions(PUNISHMENT_REASONS.warn);
+    }
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+    await message.reply({ content: contentMessage, components: [row] });
+});
+
+// معالج القوائم التفاعلية المنفصلة بالكامل بدون أي دمج أو اختصار لضمان التخصيص الكامل واللوق الخرافي
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isStringSelectMenu()) return;
+
+    const customId = interaction.customId;
+    const logChannel = interaction.guild.channels.cache.get(CONFIG.LOG_CHANNEL);
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+
+    const hasAdmin = interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE) || interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
+    const hasMod = interaction.member.roles.cache.has(CONFIG.MOD_ROLE);
+
+    // 1. منيو الميوت المستقل
+    if (customId.startsWith("mutemenu_")) {
+        if (!hasAdmin && !hasMod) return interaction.reply({ content: "❌ لا تملك الرتبة المطلوبة لاستخدام منيو الميوت.", flags: MessageFlags.Ephemeral });
+        
+        const targetId = customId.split("_")[1];
+        const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
+        if (!targetMember) return interaction.reply({ content: "❌ لم يتم العثور على العضو لتطبيق الميوت.", flags: MessageFlags.Ephemeral });
+
+        const selectedValue = interaction.values[0];
+        const selectedOption = interaction.component.options.find(o => o.value === selectedValue);
+        const cleanReason = selectedOption.label.split("،")[0].trim();
+        const durationText = selectedOption.label.split("،")[1] ? selectedOption.label.split("،")[1].trim() : "نهائي";
+
+        let durationMs = 0;
+        const timeMatch = selectedValue.match(/_(\d+)/) || durationText.match(/(\d+)\s*د/);
+        if (timeMatch) durationMs = parseInt(timeMatch[1], 10) * 60 * 1000;
+
+        await targetMember.roles.add(CONFIG.MUTE_ROLE);
+        await interaction.reply({ content: `✅ تم تطبيق عقوبة كتم الصوت (ميوت) بنجاح على ${targetMember}.` });
+        await interaction.message.delete().catch(() => {});
+
+        if (logChannel) {
+            const muteEmbed = new EmbedBuilder()
+                .setColor("#E67E22")
+                .setTitle("🔇 تسجيل عقوبة: ميوت صوتي وكتابي")
+                .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
+                .addFields(
+                    { name: "👤 العضو المستهدف:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
+                    { name: "🛠️ الإداري المسؤول:", value: `${interaction.user}`, inline: true },
+                    { name: "⏳ المدة المحددة:", value: `\`${durationText}\``, inline: true },
+                    { name: "⏱️ توقيت المخالفة:", value: `<t:${currentTimestamp}:R>`, inline: true },
+                    { name: "📝 سبب العقوبة المباشر:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
+                )
+                .setFooter({ text: "نظام إدارة المخالفات والعقوبات التلقائي" })
+                .setTimestamp();
+            logChannel.send({ embeds: [muteEmbed] });
+        }
+
+        if (durationMs > 0) {
+            setTimeout(async () => {
+                const memberCheck = await interaction.guild.members.fetch(targetId).catch(() => null);
+                if (memberCheck && memberCheck.roles.cache.has(CONFIG.MUTE_ROLE)) {
+                    await memberCheck.roles.remove(CONFIG.MUTE_ROLE).catch(() => {});
+                    if (logChannel) {
+                        const autoUnmuteEmbed = new EmbedBuilder()
+                            .setColor("#2ECC71")
+                            .setTitle("⏰ انتهاء مدة العقوبة | ميوت تلقائي")
+                            .setThumbnail(memberCheck.user.displayAvatarURL({ dynamic: true }))
+                            .setDescription(`⏱️ تم إلغاء كتم الصوت عن العضو وإعادة صلاحيات التحدث بالكامل نظراً لانتهاء المدة الزمنية الخاصة بعقوبته وهي (\`${durationText}\`).`)
+                            .addFields(
+                                { name: "👤 العضو المشمول:", value: `<@${targetId}>`, inline: true },
+                                { name: "🤖 النظام:", value: `${client.user}`, inline: true }
+                            )
+                            .setTimestamp();
+                        logChannel.send({ embeds: [autoUnmuteEmbed] });
+                    }
+                }
+            }, durationMs);
+        }
+    }
+
+    // 2. منيو الباند المستقل
+    if (customId.startsWith("banmenu_")) {
+        if (!hasAdmin) return interaction.reply({ content: "❌ رتبتك الحالية لا تملك صلاحية استخدام منيو الباند النهائي.", flags: MessageFlags.Ephemeral });
+        
+        const targetId = customId.split("_")[1];
+        const selectedValue = interaction.values[0];
+        const selectedOption = interaction.component.options.find(o => o.value === selectedValue);
+        const cleanReason = selectedOption.label.split("،")[0].trim();
+
+        await interaction.guild.members.ban(targetId, { reason: cleanReason });
+        await interaction.reply({ content: `✅ تم حظر وحذف الآيدي \`${targetId}\` من السيرفر نهائياً.` });
+        await interaction.message.delete().catch(() => {});
+
+        if (logChannel) {
+            const banEmbed = new EmbedBuilder()
+                .setColor("#E74C3C")
+                .setTitle("✈️ تسجيل طرد وعقوبة: حظر نهائي (باند)")
+                .addFields(
+                    { name: "👤 العضو المحظور:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
+                    { name: "🛠️ الإداري المسؤول:", value: `${interaction.user}`, inline: true },
+                    { name: "⏳ المدة المقررة:", value: `\`نهائي دون رجعة\``, inline: true },
+                    { name: "⏱️ توقيت الحظر:", value: `<t:${currentTimestamp}:R>`, inline: true },
+                    { name: "📝 وبناءً على ذلك السبب القاطع:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
+                )
+                .setFooter({ text: "قسم الحماية وتطهير مجتمع السيرفر" })
+                .setTimestamp();
+            logChannel.send({ embeds: [banEmbed] });
+        }
+    }
+
+    // 3. منيو السجن المستقل
+    if (customId.startsWith("jailmenu_")) {
+        if (!hasAdmin) return interaction.reply({ content: "❌ عذراً، منيو السجن مخصص فقط لأصحاب الصلاحيات الإدارية العليا.", flags: MessageFlags.Ephemeral });
+        
+        const targetId = customId.split("_")[1];
+        const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
+        if (!targetMember) return interaction.reply({ content: "❌ لم يتم العثور على العضو لتطبيق السجن عليه.", flags: MessageFlags.Ephemeral });
+
+        const selectedValue = interaction.values[0];
+        const selectedOption = interaction.component.options.find(o => o.value === selectedValue);
+        const cleanReason = selectedOption.label.split("،")[0].trim();
+        const durationText = selectedOption.label.split("،")[1] ? selectedOption.label.split("،")[1].trim() : "حتى أمر الإدارة";
+
+        let durationMs = 0;
+        const timeMatch = selectedValue.match(/_(\d+)/) || durationText.match(/(\d+)\s*د/);
+        if (timeMatch) durationMs = parseInt(timeMatch[1], 10) * 60 * 1000;
+
+        await targetMember.roles.add(CONFIG.JAIL_ROLE);
+        await interaction.reply({ content: `✅ تم سجن العضو بنجاح ونقله لغرفة السجن الإداري.` });
+        await interaction.message.delete().catch(() => {});
+
+        if (logChannel) {
+            const jailEmbed = new EmbedBuilder()
+                .setColor("#9B59B6")
+                .setTitle("🚨 تسجيل عقوبة: سجن إداري وعزل رتب")
+                .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
+                .addFields(
+                    { name: "👤 العضو المسجون:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
+                    { name: "🛠️ الإداري المسؤول:", value: `${interaction.user}`, inline: true },
+                    { name: "⏳ مدة الاحتجاز:", value: `\`${durationText}\``, inline: true },
+                    { name: "⏱️ توقيت السجن:", value: `<t:${currentTimestamp}:R>`, inline: true },
+                    { name: "📝 سبب الحجز وعزل الصلاحيات:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
+                )
+                .setFooter({ text: "غرفة الانضباط والتحقيق الداخلي" })
+                .setTimestamp();
+            logChannel.send({ embeds: [jailEmbed] });
+        }
+
+        if (durationMs > 0) {
+            setTimeout(async () => {
+                const memberCheck = await interaction.guild.members.fetch(targetId).catch(() => null);
+                if (memberCheck && memberCheck.roles.cache.has(CONFIG.JAIL_ROLE)) {
+                    await memberCheck.roles.remove(CONFIG.JAIL_ROLE).catch(() => {});
+                    if (logChannel) {
+                        const autoUnjailEmbed = new EmbedBuilder()
+                            .setColor("#2ECC71")
+                            .setTitle("⏰ انتهاء مدة الحجز | سجن تلقائي")
+                            .setThumbnail(memberCheck.user.displayAvatarURL({ dynamic: true }))
+                            .setDescription(`⏱️ تم الإفراج عن العضو تلقائياً وفك القيود عنه بعد انقضاء كامل مدة العقوبة المحكوم بها وهي (\`${durationText}\`).`)
+                            .addFields(
+                                { name: "👤 العضو المفرج عنه:", value: `<@${targetId}>`, inline: true },
+                                { name: "🤖 النظام والتأمين تلقائي:", value: `${client.user}`, inline: true }
+                            )
+                            .setTimestamp();
+                        logChannel.send({ embeds: [autoUnjailEmbed] });
+                    }
+                }
+            }, durationMs);
+        }
+    }
+
+    // 4. منيو التحذير المستقل
+    if (customId.startsWith("warnmenu_")) {
+        if (!hasAdmin && !hasMod) return interaction.reply({ content: "❌ لا تملك الرتبة المطلوبة لتسجيل التحذيرات.", flags: MessageFlags.Ephemeral });
+        
+        const targetId = customId.split("_")[1];
+        const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
+        if (!targetMember) return interaction.reply({ content: "❌ تعذر العثور على العضو لإرسال التحذير.", flags: MessageFlags.Ephemeral });
+
+        const selectedValue = interaction.values[0];
+        const selectedOption = interaction.component.options.find(o => o.value === selectedValue);
+        const cleanReason = selectedOption.label.split("،")[0].trim();
+
+        if (!warningsDatabase[targetId]) warningsDatabase[targetId] = [];
+        warningsDatabase[targetId].push({
+            reason: cleanReason,
+            admin: interaction.user.id,
+            timestamp: Date.now()
+        });
+
+        const totalWarns = warningsDatabase[targetId].length;
+
+        const dmEmbed = new EmbedBuilder()
+            .setColor("#FFA500")
+            .setTitle(`⚠️ لقد تلقيت تحذيراً جديداً!`)
+            .setDescription(`مرحباً بك في سيرفر **${interaction.guild.name}**، نود إعلامك بأنه تم تسجيل تحذير رسمي بحقك بسبب مخالفتك للقوانين.`)
+            .addFields(
+                { name: "السبب الرئيسي:", value: cleanReason },
+                { name: "مجموع تحذيراتك الحالي بالمخدم:", value: `\`${totalWarns}\` تحذيرات` }
+            )
+            .setFooter({ text: "يرجى الالتزام التام بالقوانين لتجنب العقوبات الأشد كالميوت أو السجن والباند النهائي." })
+            .setTimestamp();
+
+        await targetMember.send({ embeds: [dmEmbed] }).catch(() => {});
+        await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${cleanReason}` });
+        await interaction.message.delete().catch(() => {});
+
+        if (logChannel) {
+            const warnEmbed = new EmbedBuilder()
+                .setColor("#F1C40F")
+                .setTitle(`⚠️ تسجيل مخالفة: تحذير رسمي رقم (${totalWarns})`)
+                .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
+                .addFields(
+                    { name: "👤 العضو المنذر:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
+                    { name: "🛠️ الإداري المنذر:", value: `${interaction.user}`, inline: true },
+                    { name: "📊 المجموع التراكمي:", value: `\`${totalWarns}\` تحذيرات`, inline: true },
+                    { name: "⏱️ تاريخ التنبيه:", value: `<t:${currentTimestamp}:R>`, inline: true },
+                    { name: "📝 فحوى ونوع المخالفة المسجلة:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
+                )
+                .setFooter({ text: "سجل حصر التنبيهات والإنذارات المسبقة" })
+                .setTimestamp();
+            logChannel.send({ embeds: [warnEmbed] });
+        }
+    }
+});
+
+client.login(process.env.TOKEN);
