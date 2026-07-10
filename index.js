@@ -184,6 +184,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 });
 
+const PREFIX = '!'; 
+
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
 
@@ -193,10 +195,48 @@ client.on(Events.MessageCreate, async (message) => {
 
     const hasAdmin = message.member.roles.cache.has(CONFIG.ADMIN_ROLE) || message.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
     const hasMod = message.member.roles.cache.has(CONFIG.MOD_ROLE);
-    if (!hasAdmin && !hasMod) return;
 
     const firstWord = args[0].toLowerCase();
     const lastWord = args[args.length - 1].toLowerCase();
+
+    // تشغيل أمر البرودكاست المباشر المجمع
+    if (firstWord === `${PREFIX}bc`) {
+        if (!hasAdmin) return message.reply("❌ عذراً، هذا الأمر مخصص للإداريين فقط!");
+        
+        const broadcastMessage = msgContent.substring(firstWord.length).trim();
+        if (!broadcastMessage) {
+            return message.reply(`❌ يرجى كتابة الرسالة بعد الأمر.\nمثال: \`${PREFIX}bc أهلاً بالجميع!\``);
+        }
+
+        const statusMessage = await message.reply('🔄 جاري بدء الإرسال الجماعي بالخاص...');
+
+        try {
+            const members = await message.guild.members.fetch();
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const [memberId, member] of members) {
+                if (member.user.bot) continue;
+
+                try {
+                    await member.send({ content: broadcastMessage });
+                    successCount++;
+                } catch (error) {
+                    failCount++;
+                }
+            }
+
+            return await statusMessage.edit({
+                content: `✅ **تم الانتهاء من الإرسال الجماعي بنجاح!**\n\n📊 **التقرير النهائي:**\n- تم الإرسال إلى: \`${successCount}\` عضو.\n- فشل الإرسال إلى: \`${failCount}\` عضو.`
+            });
+
+        } catch (err) {
+            console.error(err);
+            return await statusMessage.edit('❌ حدث خطأ أثناء محاولة جلب الأعضاء.');
+        }
+    }
+
+    if (!hasAdmin && !hasMod) return;
 
     let activeCommand = null;
 
