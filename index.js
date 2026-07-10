@@ -3,8 +3,11 @@ const {
     StringSelectMenuBuilder, Events, MessageFlags, REST, Routes, SlashCommandBuilder
 } = require("discord.js");
 const http = require("http");
-const { QuickDB } = require("quick.db"); // 1. استدعاء مكتبة Quick.db البديلة
-const db = new QuickDB(); 
+const path = require("path"); // استدعاء مكتبة المسارات لتحديد موقع الحفظ
+const { QuickDB } = require("quick.db"); 
+
+// تعديل السطر لإنشاء ملف حفظ ثابت باسم database.sqlite داخل مجلد المشروع
+const db = new QuickDB({ filePath: path.join(__dirname, "database.sqlite") }); 
 
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
@@ -21,8 +24,6 @@ const CONFIG = {
     MOD_ROLE: "1523722197510783116",
     SLASH_ALLOWED_ROLE: "1524454076031696977"
 };
-
-// 2. تم إلغاء اتصال المونقو هنا، والـ QuickDB تعمل تلقائياً بشكل محلي وسريع.
 
 const PUNISHMENT_REASONS = {
     mute: [
@@ -58,7 +59,7 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, async () => { 
-    console.log(`✅ البوت جاهز وشغال باستخدام قاعدة بيانات Quick.db السريعة!`);
+    console.log(`✅ البوت جاهز وشغال باستخدام قاعدة بيانات ومسار حفظ ثابت!`);
     const commands = [
         new SlashCommandBuilder()
             .setName("اضف_سبب")
@@ -123,7 +124,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         PUNISHMENT_REASONS[type].push({
             label: displayLabel,
-            description: `عقوبة مضافة بواسطة الإدارة العليا`,
+            description: `عقوبة مخصصة مضافة بواسطة الإدارة العليا`,
             value: uniqueValue
         });
 
@@ -247,12 +248,11 @@ client.on(Events.MessageCreate, async (message) => {
     if (activeCommand === "unwarn") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
         
-        // جلب سجل العضو من Quick.db
         let userWarns = await db.get(`warns_${targetId}`) || [];
 
         if (userWarns.length > 0) {
-            userWarns.pop(); // حذف آخر تحذير من المصفوفة المحلية
-            await db.set(`warns_${targetId}`, userWarns); // حفظ التعديل
+            userWarns.pop(); 
+            await db.set(`warns_${targetId}`, userWarns); 
 
             if (logChannel) {
                 const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
@@ -277,7 +277,6 @@ client.on(Events.MessageCreate, async (message) => {
     if (activeCommand === "warnings") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو لعرض تحذيراته.");
         
-        // جلب سجل العضو من Quick.db
         const userWarns = await db.get(`warns_${targetId}`) || [];
 
         if (userWarns.length === 0) {
@@ -340,7 +339,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const hasAdmin = interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE) || interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
     const hasMod = interaction.member.roles.cache.has(CONFIG.MOD_ROLE);
 
-    // 1. منيو الميوت المستقل
     if (customId.startsWith("mutemenu_")) {
         if (!hasAdmin && !hasMod) return interaction.reply({ content: "❌ لا تملك الرتبة المطلوبة لاستخدام منيو الميوت.", flags: MessageFlags.Ephemeral });
         
@@ -401,7 +399,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     }
 
-    // 2. منيو الباند المستقل
     if (customId.startsWith("banmenu_")) {
         if (!hasAdmin) return interaction.reply({ content: "❌ رتبتك الحالية لا تملك صلاحية استخدام منيو الباند النهائي.", flags: MessageFlags.Ephemeral });
         
@@ -431,7 +428,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     }
 
-    // 3. منيو السجن المستقل
     if (customId.startsWith("jailmenu_")) {
         if (!hasAdmin) return interaction.reply({ content: "❌ عذراً، منيو السجن مخصص فقط لأصحاب الصلاحيات الإدارية العليا.", flags: MessageFlags.Ephemeral });
         
@@ -492,7 +488,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     }
 
-    // 4. منيو التحذير المستقل (إدخال البيانات في Quick.db)
     if (customId.startsWith("warnmenu_")) {
         if (!hasAdmin && !hasMod) return interaction.reply({ content: "❌ لا تملك الرتبة المطلوبة لتسجيل التحذيرات.", flags: MessageFlags.Ephemeral });
         
@@ -504,17 +499,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const selectedOption = interaction.component.options.find(o => o.value === selectedValue);
         const cleanReason = selectedOption.label.split("،")[0].trim();
 
-        // جلب مستند العضو من Quick.db، وإنشائه إن لم يكن موجوداً
         let userWarns = await db.get(`warns_${targetId}`) || [];
 
-        // إضافة التحذير الجديد للمصفوفة
         userWarns.push({
             reason: cleanReason,
             admin: interaction.user.id,
             timestamp: Date.now()
         });
 
-        // حفظ التحديث في Quick.db بشكل تلقائي
         await db.set(`warns_${targetId}`, userWarns);
 
         const totalWarns = userWarns.length;
