@@ -176,11 +176,25 @@ client.on(Events.MessageCreate, async (message) => {
     const matchedId = msgContent.match(idRegex);
     let targetId = matchedId ? matchedId[0] : null;
 
+    const logChannel = message.guild.channels.cache.get(CONFIG.LOG_CHANNEL);
+
     if (activeCommand === "unmute") {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
         const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
         if (!targetMember) return message.reply("❌ لم يتم العثور على العضو في السيرفر.");
         await targetMember.roles.remove(CONFIG.MUTE_ROLE);
+        
+        if (logChannel) {
+            const embed = new EmbedBuilder()
+                .setColor("#00FF00")
+                .setTitle("🔊 إلغاء كتم الصوت (يدوي)")
+                .addFields(
+                    { name: "العضو المحرر:", value: `<@${targetId}> (\`${targetId}\`)`, inline: true },
+                    { name: "بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
+                )
+                .setTimestamp();
+            logChannel.send({ embeds: [embed] });
+        }
         return message.reply(`✅ تم إزاله الميوت عن <@${targetId}>`);
     }
 
@@ -190,6 +204,18 @@ client.on(Events.MessageCreate, async (message) => {
         const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
         if (!targetMember) return message.reply("❌ لم يتم العثور على العضو في السيرفر.");
         await targetMember.roles.remove(CONFIG.JAIL_ROLE);
+
+        if (logChannel) {
+            const embed = new EmbedBuilder()
+                .setColor("#00FF00")
+                .setTitle("🔓 إخراج من السجن (يدوي)")
+                .addFields(
+                    { name: "العضو المحرر:", value: `<@${targetId}> (\`${targetId}\`)`, inline: true },
+                    { name: "بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
+                )
+                .setTimestamp();
+            logChannel.send({ embeds: [embed] });
+        }
         return message.reply(`✅ تم إخراج <@${targetId}> من السجن.`);
     }
 
@@ -198,6 +224,18 @@ client.on(Events.MessageCreate, async (message) => {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
         const unbanned = await message.guild.members.unban(targetId).catch(() => null);
         if (!unbanned) return message.reply("❌ العضو ليس متبنداً أو الآيدي خاطئ.");
+
+        if (logChannel) {
+            const embed = new EmbedBuilder()
+                .setColor("#00FF00")
+                .setTitle("✈️ فك حظر نهائي (يدوي)")
+                .addFields(
+                    { name: "الآيدي المحرر:", value: `\`${targetId}\``, inline: true },
+                    { name: "بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
+                )
+                .setTimestamp();
+            logChannel.send({ embeds: [embed] });
+        }
         return message.reply(`✅ تم فك الباند عن الآيدي: ${targetId}`);
     }
 
@@ -205,6 +243,19 @@ client.on(Events.MessageCreate, async (message) => {
         if (!targetId) return message.reply("⚠️ يرجى كتابة آيدي العضو.");
         if (warningsDatabase[targetId] && warningsDatabase[targetId].length > 0) {
             warningsDatabase[targetId].pop(); 
+
+            if (logChannel) {
+                const embed = new EmbedBuilder()
+                    .setColor("#00FF00")
+                    .setTitle("🛡️ حذف تحذير (يدوي)")
+                    .addFields(
+                        { name: "العضو:", value: `<@${targetId}>`, inline: true },
+                        { name: "بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true },
+                        { name: "التحذيرات المتبقية:", value: `\`${warningsDatabase[targetId].length}\``, inline: true }
+                    )
+                    .setTimestamp();
+                logChannel.send({ embeds: [embed] });
+            }
             return message.reply(`✅ تم حذف آخر تحذير للعضو. المتبقي له: ${warningsDatabase[targetId].length}`);
         } else {
             return message.reply("❌ هذا العضو ليس لديه أي تحذيرات سابقة.");
@@ -299,9 +350,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (menuType === "warn") durationText = "بدون مدة";
 
-    let typeText = menuType;
+    let typeTextAr = menuType === "mute" ? "ميوت صوتي" : menuType === "ban" ? "حظر نهائي" : menuType === "jail" ? "سجن إداري" : "تحذير رسمي";
+    let embedColor = menuType === "ban" ? "#FF0000" : "#FF5500";
 
-    // فحص ذكي وموثوق للمدة الزمنية من الـ Value أو الـ Label
     let durationMs = 0;
     const timeMatch = selectedValue.match(/_(\d+)/) || durationText.match(/(\d+)\s*د/);
     if (timeMatch) {
@@ -312,7 +363,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     try {
         if (menuType === "mute") {
             await targetMember.roles.add(CONFIG.MUTE_ROLE);
-            typeText = "voice"; 
             await interaction.reply({ content: `✅ تم إعطاء الميوت لـ ${targetMember} بناءً على: ${cleanReason}` });
 
             if (durationMs > 0) {
@@ -321,7 +371,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (memberCheck && memberCheck.roles.cache.has(CONFIG.MUTE_ROLE)) {
                         await memberCheck.roles.remove(CONFIG.MUTE_ROLE).catch(() => {});
                         if (logChannel) {
-                            logChannel.send({ content: `انتهت مدة العقوبة الزمنية، وتم إلغاء الميوت عن العضو <@${targetId}> لانتهاء المدة (${durationText}).` });
+                            const autoUnmuteEmbed = new EmbedBuilder()
+                                .setColor("#00FF00")
+                                .setTitle("⏰ إزالة عقوبة تلقائية")
+                                .setDescription(`تم فك كتم الصوت تلقائياً لانتهاء مدة العقوبة المحكوم بها (\`${durationText}\`).`)
+                                .addFields(
+                                    { name: "العضو المعافى:", value: `<@${targetId}>`, inline: true },
+                                    { name: "بواسطة الإداري:", value: `${client.user}`, inline: true }
+                                )
+                                .setTimestamp();
+                            logChannel.send({ embeds: [autoUnmuteEmbed] });
                         }
                     }
                 }, durationMs);
@@ -329,12 +388,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
         else if (menuType === "ban") {
             await interaction.guild.members.ban(targetId, { reason: cleanReason });
-            typeText = "ban";
             await interaction.reply({ content: `✅ تم تبنيد الآيدي ${targetId} نهائياً بسبب: ${cleanReason}` });
         }
         else if (menuType === "jail") {
             await targetMember.roles.add(CONFIG.JAIL_ROLE);
-            typeText = "jail";
             await interaction.reply({ content: `✅ تم سجن ${targetMember} بسبب: ${cleanReason}` });
 
             if (durationMs > 0) {
@@ -343,7 +400,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (memberCheck && memberCheck.roles.cache.has(CONFIG.JAIL_ROLE)) {
                         await memberCheck.roles.remove(CONFIG.JAIL_ROLE).catch(() => {});
                         if (logChannel) {
-                            logChannel.send({ content: `انتهت مدة العقوبة الزمنية، وتم إلغاء السجن عن العضو <@${targetId}> من السجن تلقائياً لانتهاء المدة (${durationText}).` });
+                            const autoUnjailEmbed = new EmbedBuilder()
+                                .setColor("#00FF00")
+                                .setTitle("⏰ إزالة عقوبة تلقائية")
+                                .setDescription(`تم إخراج العضو من السجن تلقائياً لانتهاء مدة العقوبة المحكوم بها (\`${durationText}\`).`)
+                                .addFields(
+                                    { name: "العضو المعافى:", value: `<@${targetId}>`, inline: true },
+                                    { name: "بواسطة الإداري:", value: `${client.user}`, inline: true }
+                                )
+                                .setTimestamp();
+                            logChannel.send({ embeds: [autoUnjailEmbed] });
                         }
                     }
                 }, durationMs);
@@ -357,7 +423,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 timestamp: Date.now()
             });
 
-            typeText = `warn (${warningsDatabase[targetId].length})`;
+            typeTextAr = `تحذير رسمي (${warningsDatabase[targetId].length})`;
 
             const dmEmbed = new EmbedBuilder()
                 .setColor("#FFA500")
@@ -377,8 +443,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await interaction.message.delete().catch(() => {});
 
         if (logChannel) {
-            const logMessage = `**type: ${typeText}**\n**member :** <@${targetId}>\n**admin :** <@${interaction.user.id}>\n**time : ${durationText}**\n**reason :** ${cleanReason}`;
-            logChannel.send({ content: logMessage });
+            const logEmbed = new EmbedBuilder()
+                .setColor(embedColor)
+                .setTitle(`🚨 تسجيل عقوبة جديدة: ${typeTextAr}`)
+                .addFields(
+                    { name: "العضو المستهدف:", value: `<@${targetId}> (\`${targetId}\`)`, inline: false },
+                    { name: "بواسطة الإداري:", value: `${interaction.user}`, inline: true },
+                    { name: "المدة الزمنية:", value: `\`${durationText}\``, inline: true },
+                    { name: "السبب المسجل:", value: `\`${cleanReason}\``, inline: false }
+                )
+                .setTimestamp();
+            logChannel.send({ embeds: [logEmbed] });
         }
 
     } catch (err) {
