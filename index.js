@@ -201,7 +201,8 @@ client.on(Events.MessageCreate, async (message) => {
 
     // تشغيل أمر البرودكاست المباشر المجمع
     if (firstWord === `${PREFIX}bc`) {
-        if (!hasAdmin) return message.reply("❌ عذراً، هذا الأمر مخصص للإداريين فقط!");
+        const hasBcRole = message.member.roles.cache.has("1524454076031696977");
+        if (!hasBcRole) return message.reply("❌ عذراً، هذا الأمر مخصص فقط لأصحاب الرتبة المحددة!");
         
         const broadcastMessage = msgContent.substring(firstWord.length).trim();
         if (!broadcastMessage) {
