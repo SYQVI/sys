@@ -147,7 +147,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
         PUNISHMENT_REASONS[type].push({
             label: displayLabel,
-            description: `عقوبة مخصصة مضافة بواسطة الإدارة العليا`,
+            description: `عقوبة مضافة بواسطة الإدارة العليا`,
             value: uniqueValue
         });
 
