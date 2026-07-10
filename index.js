@@ -187,7 +187,7 @@ client.on(Events.MessageCreate, async (message) => {
         if (logChannel) {
             const embed = new EmbedBuilder()
                 .setColor("#2ECC71")
-                .setTitle("🔊 فك كتم الصوت | يدوي")
+                .setTitle("🔊 فك الميوت | يدوي")
                 .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
                     { name: "👤 العضو المحرر:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
@@ -355,7 +355,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (logChannel) {
             const muteEmbed = new EmbedBuilder()
                 .setColor("#E67E22")
-                .setTitle("🔇 تسجيل عقوبة: ميوت صوتي وكتابي")
+                .setTitle("🔇 تسجيل عقوبة: ميوت ")
                 .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
                     { name: "👤 العضو المستهدف:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
@@ -364,7 +364,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     { name: "⏱️ توقيت المخالفة:", value: `<t:${currentTimestamp}:R>`, inline: true },
                     { name: "📝 سبب العقوبة المباشر:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
                 )
-                .setFooter({ text: "نظام إدارة المخالفات والعقوبات التلقائي" })
+                .setFooter({ text: "developed by @f52k CTO" })
                 .setTimestamp();
             logChannel.send({ embeds: [muteEmbed] });
         }
@@ -377,7 +377,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     if (logChannel) {
                         const autoUnmuteEmbed = new EmbedBuilder()
                             .setColor("#2ECC71")
-                            .setTitle("⏰ انتهاء مدة العقوبة | ميوت تلقائي")
+                            .setTitle("⏰ انتهاء مدة العقوبة | ميوت")
                             .setThumbnail(memberCheck.user.displayAvatarURL({ dynamic: true }))
                             .setDescription(`⏱️ تم إلغاء كتم الصوت عن العضو وإعادة صلاحيات التحدث بالكامل نظراً لانتهاء المدة الزمنية الخاصة بعقوبته وهي (\`${durationText}\`).`)
                             .addFields(
@@ -416,7 +416,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     { name: "⏱️ توقيت الحظر:", value: `<t:${currentTimestamp}:R>`, inline: true },
                     { name: "📝 وبناءً على ذلك السبب القاطع:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
                 )
-                .setFooter({ text: "قسم الحماية وتطهير مجتمع السيرفر" })
+                .setFooter({ text: "developed by @f52k CTO" })
                 .setTimestamp();
             logChannel.send({ embeds: [banEmbed] });
         }
@@ -455,7 +455,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     { name: "⏱️ توقيت السجن:", value: `<t:${currentTimestamp}:R>`, inline: true },
                     { name: "📝 سبب الحجز وعزل الصلاحيات:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
                 )
-                .setFooter({ text: "غرفة الانضباط والتحقيق الداخلي" })
+                .setFooter({ text: "developed by @f52k CTO" })
                 .setTimestamp();
             logChannel.send({ embeds: [jailEmbed] });
         }
@@ -531,7 +531,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     { name: "⏱️ تاريخ التنبيه:", value: `<t:${currentTimestamp}:R>`, inline: true },
                     { name: "📝 فحوى ونوع المخالفة المسجلة:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
                 )
-                .setFooter({ text: "سجل حصر التنبيهات والإنذارات المسبقة" })
+                .setFooter({ text: "developed by @f52k CTO" })
                 .setTimestamp();
             logChannel.send({ embeds: [warnEmbed] });
         }
