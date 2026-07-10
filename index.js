@@ -191,7 +191,7 @@ client.on(Events.MessageCreate, async (message) => {
                 .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
                     { name: "👤 العضو المحرر:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
-                    { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
+                    { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: false }
                 )
                 .setTimestamp();
             logChannel.send({ embeds: [embed] });
@@ -213,7 +213,7 @@ client.on(Events.MessageCreate, async (message) => {
                 .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
                     { name: "👤 العضو المحرر:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
-                    { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
+                    { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: false }
                 )
                 .setTimestamp();
             logChannel.send({ embeds: [embed] });
@@ -233,7 +233,7 @@ client.on(Events.MessageCreate, async (message) => {
                 .setTitle("✈️ فك حظر السيرفر | يدوي")
                 .addFields(
                     { name: "🆔 الآيدي المحرر:", value: `\`${targetId}\``, inline: false },
-                    { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
+                    { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: false }
                 )
                 .setTimestamp();
             logChannel.send({ embeds: [embed] });
@@ -252,8 +252,8 @@ client.on(Events.MessageCreate, async (message) => {
                     .setColor("#2ECC71")
                     .setTitle("🛡️ إزالة تحذير رسمي")
                     .addFields(
-                        { name: "👤 العضو المشمول:", value: `<@${targetId}>`, inline: true },
-                        { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true },
+                        { name: "👤 العضو المشمول:", value: `<@${targetId}>`, inline: false },
+                        { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: false },
                         { name: "📊 سجل التحذيرات المتبقي:", value: `\`${warningsDatabase[targetId].length}\` تحذير`, inline: false }
                     )
                     .setTimestamp();
@@ -302,7 +302,6 @@ client.on(Events.MessageCreate, async (message) => {
         return message.reply(`❌ لا توجد أي أسباب مضافة لقائمة الـ **${activeCommand}** حالياً. استخدم أمر \`/اضف_سبب\` أولاً.`);
     }
 
-    // هنا يتم عزل وصناعة الـ String Select Menu مستقل لكل عقوبة بناء على نوع الأمر
     let selectMenu = new StringSelectMenuBuilder().setPlaceholder("اضغط لأختيار السبب لتنفيذ العقوبة");
     let contentMessage = `<@${targetMember.id}> , رجاءً قم بأختيار السبب المخصص`;
 
@@ -320,7 +319,6 @@ client.on(Events.MessageCreate, async (message) => {
     await message.reply({ content: contentMessage, components: [row] });
 });
 
-// معالج القوائم التفاعلية المنفصلة بالكامل بدون أي دمج أو اختصار لضمان التخصيص الكامل واللوق الخرافي
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isStringSelectMenu()) return;
 
@@ -359,9 +357,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
                     { name: "👤 العضو المستهدف:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
-                    { name: "🛠️ الإداري المسؤول:", value: `${interaction.user}`, inline: true },
-                    { name: "⏳ المدة المحددة:", value: `\`${durationText}\``, inline: true },
-                    { name: "⏱️ توقيت المخالفة:", value: `<t:${currentTimestamp}:R>`, inline: true },
+                    { name: "🛠️ الإداري المسؤول:", value: `${interaction.user}`, inline: false },
+                    { name: "⏳ المدة المحددة:", value: `\`${durationText}\``, inline: false },
+                    { name: "⏱️ توقيت المخالفة:", value: `<t:${currentTimestamp}:R>`, inline: false },
                     { name: "📝 سبب العقوبة المباشر:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
                 )
                 .setFooter({ text: "developed by @f52k CTO" })
@@ -381,8 +379,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                             .setThumbnail(memberCheck.user.displayAvatarURL({ dynamic: true }))
                             .setDescription(`⏱️ تم إلغاء كتم الصوت عن العضو وإعادة صلاحيات التحدث بالكامل نظراً لانتهاء المدة الزمنية الخاصة بعقوبته وهي (\`${durationText}\`).`)
                             .addFields(
-                                { name: "👤 العضو المشمول:", value: `<@${targetId}>`, inline: true },
-                                { name: "🤖 النظام:", value: `${client.user}`, inline: true }
+                                { name: "👤 العضو المشمول:", value: `<@${targetId}>`, inline: false },
+                                { name: "🤖 النظام:", value: `${client.user}`, inline: false }
                             )
                             .setTimestamp();
                         logChannel.send({ embeds: [autoUnmuteEmbed] });
@@ -411,9 +409,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 .setTitle("✈️ تسجيل طرد وعقوبة: حظر نهائي (باند)")
                 .addFields(
                     { name: "👤 العضو المحظور:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
-                    { name: "🛠️ الإداري المسؤول:", value: `${interaction.user}`, inline: true },
-                    { name: "⏳ المدة المقررة:", value: `\`نهائي دون رجعة\``, inline: true },
-                    { name: "⏱️ توقيت الحظر:", value: `<t:${currentTimestamp}:R>`, inline: true },
+                    { name: "🛠️ الإداري المسؤول:", value: `${interaction.user}`, inline: false },
+                    { name: "⏳ المدة المقررة:", value: `\`نهائي دون رجعة\``, inline: false },
+                    { name: "⏱️ توقيت الحظر:", value: `<t:${currentTimestamp}:R>`, inline: false },
                     { name: "📝 وبناءً على ذلك السبب القاطع:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
                 )
                 .setFooter({ text: "developed by @f52k CTO" })
@@ -450,9 +448,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
                     { name: "👤 العضو المسجون:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
-                    { name: "🛠️ الإداري المسؤول:", value: `${interaction.user}`, inline: true },
-                    { name: "⏳ مدة الاحتجاز:", value: `\`${durationText}\``, inline: true },
-                    { name: "⏱️ توقيت السجن:", value: `<t:${currentTimestamp}:R>`, inline: true },
+                    { name: "🛠️ الإداري المسؤول:", value: `${interaction.user}`, inline: false },
+                    { name: "⏳ مدة الاحتجاز:", value: `\`${durationText}\``, inline: false },
+                    { name: "⏱️ توقيت السجن:", value: `<t:${currentTimestamp}:R>`, inline: false },
                     { name: "📝 سبب الحجز وعزل الصلاحيات:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
                 )
                 .setFooter({ text: "developed by @f52k CTO" })
@@ -472,8 +470,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
                             .setThumbnail(memberCheck.user.displayAvatarURL({ dynamic: true }))
                             .setDescription(`⏱️ تم الإفراج عن العضو تلقائياً وفك القيود عنه بعد انقضاء كامل مدة العقوبة المحكوم بها وهي (\`${durationText}\`).`)
                             .addFields(
-                                { name: "👤 العضو المفرج عنه:", value: `<@${targetId}>`, inline: true },
-                                { name: "🤖 النظام والتأمين تلقائي:", value: `${client.user}`, inline: true }
+                                { name: "👤 العضو المفرج عنه:", value: `<@${targetId}>`, inline: false },
+                                { name: "🤖 النظام والتأمين تلقائي:", value: `${client.user}`, inline: false }
                             )
                             .setTimestamp();
                         logChannel.send({ embeds: [autoUnjailEmbed] });
@@ -509,8 +507,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
             .setTitle(`⚠️ لقد تلقيت تحذيراً جديداً!`)
             .setDescription(`مرحباً بك في سيرفر **${interaction.guild.name}**، نود إعلامك بأنه تم تسجيل تحذير رسمي بحقك بسبب مخالفتك للقوانين.`)
             .addFields(
-                { name: "السبب الرئيسي:", value: cleanReason },
-                { name: "مجموع تحذيراتك الحالي بالمخدم:", value: `\`${totalWarns}\` تحذيرات` }
+                { name: "السبب الرئيسي:", value: cleanReason, inline: false },
+                { name: "مجموع تحذيراتك الحالي بالمخدم:", value: `\`${totalWarns}\` تحذيرات`, inline: false }
             )
             .setFooter({ text: "يرجى الالتزام التام بالقوانين لتجنب العقوبات الأشد كالميوت أو السجن والباند النهائي." })
             .setTimestamp();
@@ -526,9 +524,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
                     { name: "👤 العضو المنذر:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
-                    { name: "🛠️ الإداري المنذر:", value: `${interaction.user}`, inline: true },
-                    { name: "📊 المجموع التراكمي:", value: `\`${totalWarns}\` تحذيرات`, inline: true },
-                    { name: "⏱️ تاريخ التنبيه:", value: `<t:${currentTimestamp}:R>`, inline: true },
+                    { name: "🛠️ الإداري المنذر:", value: `${interaction.user}`, inline: false },
+                    { name: "📊 المجموع التراكمي:", value: `\`${totalWarns}\` تحذيرات`, inline: false },
+                    { name: "⏱️ تاريخ التنبيه:", value: `<t:${currentTimestamp}:R>`, inline: false },
                     { name: "📝 فحوى ونوع المخالفة المسجلة:", value: `\`\`\`yaml\n${cleanReason}\n\`\`\``, inline: false }
                 )
                 .setFooter({ text: "developed by @f52k CTO" })
