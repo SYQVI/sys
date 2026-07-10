@@ -186,11 +186,12 @@ client.on(Events.MessageCreate, async (message) => {
         
         if (logChannel) {
             const embed = new EmbedBuilder()
-                .setColor("#00FF00")
-                .setTitle("🔊 إلغاء كتم الصوت (يدوي)")
+                .setColor("#2ECC71")
+                .setTitle("🔊 فك كتم الصوت | يدوي")
+                .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
-                    { name: "العضو المحرر:", value: `<@${targetId}> (\`${targetId}\`)`, inline: true },
-                    { name: "بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
+                    { name: "👤 العضو المحرر:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
+                    { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
                 )
                 .setTimestamp();
             logChannel.send({ embeds: [embed] });
@@ -207,11 +208,12 @@ client.on(Events.MessageCreate, async (message) => {
 
         if (logChannel) {
             const embed = new EmbedBuilder()
-                .setColor("#00FF00")
-                .setTitle("🔓 إخراج من السجن (يدوي)")
+                .setColor("#2ECC71")
+                .setTitle("🔓 إخراج من السجن | يدوي")
+                .setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }))
                 .addFields(
-                    { name: "العضو المحرر:", value: `<@${targetId}> (\`${targetId}\`)`, inline: true },
-                    { name: "بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
+                    { name: "👤 العضو المحرر:", value: `<@${targetId}> \`(${targetId})\``, inline: false },
+                    { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
                 )
                 .setTimestamp();
             logChannel.send({ embeds: [embed] });
@@ -227,11 +229,11 @@ client.on(Events.MessageCreate, async (message) => {
 
         if (logChannel) {
             const embed = new EmbedBuilder()
-                .setColor("#00FF00")
-                .setTitle("✈️ فك حظر نهائي (يدوي)")
+                .setColor("#2ECC71")
+                .setTitle("✈️ فك حظر السيرفر | يدوي")
                 .addFields(
-                    { name: "الآيدي المحرر:", value: `\`${targetId}\``, inline: true },
-                    { name: "بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
+                    { name: "🆔 الآيدي المحرر:", value: `\`${targetId}\``, inline: false },
+                    { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true }
                 )
                 .setTimestamp();
             logChannel.send({ embeds: [embed] });
@@ -245,15 +247,17 @@ client.on(Events.MessageCreate, async (message) => {
             warningsDatabase[targetId].pop(); 
 
             if (logChannel) {
+                const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
                 const embed = new EmbedBuilder()
-                    .setColor("#00FF00")
-                    .setTitle("🛡️ حذف تحذير (يدوي)")
+                    .setColor("#2ECC71")
+                    .setTitle("🛡️ إزالة تحذير رسمي")
                     .addFields(
-                        { name: "العضو:", value: `<@${targetId}>`, inline: true },
-                        { name: "بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true },
-                        { name: "التحذيرات المتبقية:", value: `\`${warningsDatabase[targetId].length}\``, inline: true }
+                        { name: "👤 العضو المشمول:", value: `<@${targetId}>`, inline: true },
+                        { name: "🛠️ بواسطة الإداري:", value: `<@${message.author.id}>`, inline: true },
+                        { name: "📊 سجل التحذيرات المتبقي:", value: `\`${warningsDatabase[targetId].length}\` تحذير`, inline: false }
                     )
                     .setTimestamp();
+                if (targetMember) embed.setThumbnail(targetMember.user.displayAvatarURL({ dynamic: true }));
                 logChannel.send({ embeds: [embed] });
             }
             return message.reply(`✅ تم حذف آخر تحذير للعضو. المتبقي له: ${warningsDatabase[targetId].length}`);
@@ -281,185 +285,4 @@ client.on(Events.MessageCreate, async (message) => {
     const targetMember = message.mentions.members.first() || (targetId ? await message.guild.members.fetch(targetId).catch(() => null) : null);
 
     if (!targetMember) {
-        let currentCommandName = activeCommand === "mute" ? "ميوت" : activeCommand === "ban" ? "باند" : activeCommand === "jail" ? "سجن" : "تحذير";
-        return message.reply(`⚠️ يرجى تحديد العضو بشكل صحيح. مثال: \`${currentCommandName} 1197508804544315513\` أو \`1197508804544315513 ${currentCommandName}\``);
-    }
-
-    const isTargetAdminOrMod = targetMember.roles.cache.has(CONFIG.ADMIN_ROLE) || 
-                               targetMember.roles.cache.has(CONFIG.ADMIN_ROLE_2) || 
-                               targetMember.roles.cache.has(CONFIG.MOD_ROLE) ||
-                               targetMember.roles.cache.has(CONFIG.SLASH_ALLOWED_ROLE);
-
-    if (isTargetAdminOrMod) {
-        return message.reply("❌ ** خطأ:** لا يمكنك إعطاء عقوبة لأحد أفراد طاقم الإدارة أو العليا!");
-    }
-
-    let selectMenu = new StringSelectMenuBuilder().setPlaceholder("اضغط لأختيار السبب");
-    let contentMessage = `<@${targetMember.id}> , رجاءً قم بأختيار السبب`;
-
-    if (!PUNISHMENT_REASONS[activeCommand] || PUNISHMENT_REASONS[activeCommand].length === 0) {
-        return message.reply(`❌ لا توجد أي أسباب مضافة لقائمة الـ **${activeCommand}** حالياً. استخدم أمر \`/اضف_سبب\` أولاً.`);
-    }
-
-    selectMenu.setCustomId(`${activeCommand}_menu_${targetMember.id}`)
-        .addOptions(PUNISHMENT_REASONS[activeCommand]);
-
-    const row = new ActionRowBuilder().addComponents(selectMenu);
-    await message.reply({ content: contentMessage, components: [row] });
-});
-
-client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isStringSelectMenu()) return;
-
-    const customId = interaction.customId;
-    const parts = customId.split("_");
-    const menuType = parts[0]; 
-    const targetId = parts[2];
-    
-    const hasAdmin = interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE) || interaction.member.roles.cache.has(CONFIG.ADMIN_ROLE_2);
-    const hasMod = interaction.member.roles.cache.has(CONFIG.MOD_ROLE);
-
-    if (!hasAdmin && !hasMod) {
-        return interaction.reply({ content: "❌ لا تملك الرتبة المطلوبة للتحكم في هذا المنيو.", flags: MessageFlags.Ephemeral });
-    }
-
-    if ((menuType === "ban" || menuType === "jail") && !hasAdmin) {
-        return interaction.reply({ content: "❌ رتبتك لا تسمح بتنفيذ عمليات الباند والسجن.", flags: MessageFlags.Ephemeral });
-    }
-
-    const targetMember = await interaction.guild.members.fetch(targetId).catch(() => null);
-    if (!targetMember && menuType !== "ban") return interaction.reply({ content: "❌ لم يتم العثور على العضو.", flags: MessageFlags.Ephemeral });
-
-    if (targetMember) {
-        const isTargetAdminOrMod = targetMember.roles.cache.has(CONFIG.ADMIN_ROLE) || 
-                                   targetMember.roles.cache.has(CONFIG.ADMIN_ROLE_2) || 
-                                   targetMember.roles.cache.has(CONFIG.MOD_ROLE) ||
-                                   targetMember.roles.cache.has(CONFIG.SLASH_ALLOWED_ROLE);
-
-        if (isTargetAdminOrMod) {
-            return interaction.reply({ content: "❌ لا يمكن معاقبة هذا العضو لأنه من طاقم الإدارة.", flags: MessageFlags.Ephemeral });
-        }
-    }
-
-    const logChannel = interaction.guild.channels.cache.get(CONFIG.LOG_CHANNEL);
-    const selectedValue = interaction.values[0];
-    const selectedLabel = interaction.component.options.find(o => o.value === selectedValue).label;
-
-    let cleanReason = selectedLabel.split("،")[0].trim();
-    let durationText = selectedLabel.split("،")[1] ? selectedLabel.split("،")[1].trim() : "نهائي";
-
-    if (menuType === "warn") durationText = "بدون مدة";
-
-    let typeTextAr = menuType === "mute" ? "ميوت صوتي" : menuType === "ban" ? "حظر نهائي" : menuType === "jail" ? "سجن إداري" : "تحذير رسمي";
-    let embedColor = menuType === "ban" ? "#FF0000" : "#FF5500";
-
-    let durationMs = 0;
-    const timeMatch = selectedValue.match(/_(\d+)/) || durationText.match(/(\d+)\s*د/);
-    if (timeMatch) {
-        const minutes = parseInt(timeMatch[1], 10);
-        durationMs = minutes * 60 * 1000;
-    }
-
-    try {
-        if (menuType === "mute") {
-            await targetMember.roles.add(CONFIG.MUTE_ROLE);
-            await interaction.reply({ content: `✅ تم إعطاء الميوت لـ ${targetMember} بناءً على: ${cleanReason}` });
-
-            if (durationMs > 0) {
-                setTimeout(async () => {
-                    const memberCheck = await interaction.guild.members.fetch(targetId).catch(() => null);
-                    if (memberCheck && memberCheck.roles.cache.has(CONFIG.MUTE_ROLE)) {
-                        await memberCheck.roles.remove(CONFIG.MUTE_ROLE).catch(() => {});
-                        if (logChannel) {
-                            const autoUnmuteEmbed = new EmbedBuilder()
-                                .setColor("#00FF00")
-                                .setTitle("⏰ إزالة عقوبة تلقائية")
-                                .setDescription(`تم فك كتم الصوت تلقائياً لانتهاء مدة العقوبة المحكوم بها (\`${durationText}\`).`)
-                                .addFields(
-                                    { name: "العضو المعافى:", value: `<@${targetId}>`, inline: true },
-                                    { name: "بواسطة الإداري:", value: `${client.user}`, inline: true }
-                                )
-                                .setTimestamp();
-                            logChannel.send({ embeds: [autoUnmuteEmbed] });
-                        }
-                    }
-                }, durationMs);
-            }
-        }
-        else if (menuType === "ban") {
-            await interaction.guild.members.ban(targetId, { reason: cleanReason });
-            await interaction.reply({ content: `✅ تم تبنيد الآيدي ${targetId} نهائياً بسبب: ${cleanReason}` });
-        }
-        else if (menuType === "jail") {
-            await targetMember.roles.add(CONFIG.JAIL_ROLE);
-            await interaction.reply({ content: `✅ تم سجن ${targetMember} بسبب: ${cleanReason}` });
-
-            if (durationMs > 0) {
-                setTimeout(async () => {
-                    const memberCheck = await interaction.guild.members.fetch(targetId).catch(() => null);
-                    if (memberCheck && memberCheck.roles.cache.has(CONFIG.JAIL_ROLE)) {
-                        await memberCheck.roles.remove(CONFIG.JAIL_ROLE).catch(() => {});
-                        if (logChannel) {
-                            const autoUnjailEmbed = new EmbedBuilder()
-                                .setColor("#00FF00")
-                                .setTitle("⏰ إزالة عقوبة تلقائية")
-                                .setDescription(`تم إخراج العضو من السجن تلقائياً لانتهاء مدة العقوبة المحكوم بها (\`${durationText}\`).`)
-                                .addFields(
-                                    { name: "العضو المعافى:", value: `<@${targetId}>`, inline: true },
-                                    { name: "بواسطة الإداري:", value: `${client.user}`, inline: true }
-                                )
-                                .setTimestamp();
-                            logChannel.send({ embeds: [autoUnjailEmbed] });
-                        }
-                    }
-                }, durationMs);
-            }
-        }
-        else if (menuType === "warn") {
-            if (!warningsDatabase[targetId]) warningsDatabase[targetId] = [];
-            warningsDatabase[targetId].push({
-                reason: cleanReason,
-                admin: interaction.user.id,
-                timestamp: Date.now()
-            });
-
-            typeTextAr = `تحذير رسمي (${warningsDatabase[targetId].length})`;
-
-            const dmEmbed = new EmbedBuilder()
-                .setColor("#FFA500")
-                .setTitle(`⚠️ لقد تلقيت تحذيراً جديداً!`)
-                .setDescription(`مرحباً بك في سيرفر **${interaction.guild.name}**، نود إعلامك بأنه تم تسجيل تحذير رسمي بحقك بسبب مخالفتك للقوانين.`)
-                .addFields(
-                    { name: "السبب:", value: cleanReason },
-                    { name: "إجمالي تحذيراتك الحالية:", value: `${warningsDatabase[targetId].length}` }
-                )
-                .setFooter({ text: "يرجى الالتزام بالقوانين لتجنب العقوبات الأشد كالميوت أو السجن والباند." })
-                .setTimestamp();
-
-            await targetMember.send({ embeds: [dmEmbed] }).catch(() => {});
-            await interaction.reply({ content: `✅ تم تسجيل تحذير بحق ${targetMember} لـ: ${cleanReason}` });
-        }
-
-        await interaction.message.delete().catch(() => {});
-
-        if (logChannel) {
-            const logEmbed = new EmbedBuilder()
-                .setColor(embedColor)
-                .setTitle(`🚨 تسجيل عقوبة جديدة: ${typeTextAr}`)
-                .addFields(
-                    { name: "العضو المستهدف:", value: `<@${targetId}> (\`${targetId}\`)`, inline: false },
-                    { name: "بواسطة الإداري:", value: `${interaction.user}`, inline: true },
-                    { name: "المدة الزمنية:", value: `\`${durationText}\``, inline: true },
-                    { name: "السبب المسجل:", value: `\`${cleanReason}\``, inline: false }
-                )
-                .setTimestamp();
-            logChannel.send({ embeds: [logEmbed] });
-        }
-
-    } catch (err) {
-        console.error(err);
-        await interaction.reply({ content: "❌ حدث خطأ، تحقق من صلاحيات رتبة البوت وترتيبها بالسيرفر.", flags: MessageFlags.Ephemeral });
-    }
-});
-
-client.login(process.env.TOKEN);
+        let currentCommandName = activeCommand === "mute" ? "
